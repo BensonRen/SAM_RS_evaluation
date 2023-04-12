@@ -3,6 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pickle, random, torch, cv2, os
+from multiprocessing import Pool
+from collections import ChainMap
 
 def k_th_occurence(k, list_of_binary):
     """
@@ -60,6 +62,9 @@ def get_list_of_centers(folder, img_name, output_dict, num_count_dict, verbose=F
     # Get them into structured outputs
     (numLabels, labels, stats, centroids) = output
 
+    if numLabels == 1:
+        return None
+
     if np.max(mask > 1):    # This is to make the mask binary
         mask_binary = mask[:,:,0] > 122
     else:
@@ -111,7 +116,8 @@ def get_list_of_centers(folder, img_name, output_dict, num_count_dict, verbose=F
         assert indicator_mask[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == 1, 'in closest setting, x,y are possibly flipped'
         num_count_dict['midpoint'] += 1
         num_count_dict['set_of_non_concave_panel_imgs'].add(img_name)
-
+    
+    return output_dict, num_count_dict
     
     # mask_mul_labels = mask_binary * (labels + 1) # Label + 1 is to make sure they all start from 1
     # num_to_find_list = np.arange(1, numLabels+1)
@@ -139,6 +145,9 @@ def get_list_of_random_inside_points(folder, img_name, output_dict):
 	        mask[:, :, 0], 4)
     # Get them into structured outputs
     (numLabels, labels, stats, centroids) = output
+    if numLabels == 1:
+        return
+    
     if np.max(mask > 1):    # This is to make the mask binary
         mask_binary = mask[:,:,0] > 122
     else:
@@ -151,6 +160,7 @@ def get_list_of_random_inside_points(folder, img_name, output_dict):
     w_index = np.broadcast_to(np.arange(w), (l, w))
     l_index_flat = np.reshape(l_index, [-1, 1])
     w_index_flat = np.reshape(w_index, [-1, 1])
+
     
     # Loop over the number of labels and check whether this is a background or foregroup
     for i in range(numLabels):
@@ -168,8 +178,14 @@ def get_list_of_random_inside_points(folder, img_name, output_dict):
             output_dict[img_name] = []
         output_dict[img_name].append((int(w_index_flat[mid_point_index]), int(l_index_flat[mid_point_index])))
         assert indicator_mask[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == 1, 'in closest setting, x,y are possibly flipped'
+    return output_dict
 
-
+def get_prompt_for_list_for_random(folder, file_list, output_dict):
+    for file in file_list:
+        get_list_of_random_inside_points(folder=folder,img_name=file, 
+                        output_dict=output_dict)
+    return output_dict
+    
 if __name__ == '__main__':
     num_count_dict = {'center': 0, 'midpoint':0, 'set_of_non_concave_panel_imgs':set()}
     output_dict = {}
@@ -197,6 +213,35 @@ if __name__ == '__main__':
     # for file in os.listdir(folder):
     # k, k_limit = 0, 100
     k, k_limit = 0, 9999999999
+
+    ######################################
+    # Use some parallel computing method #
+    ######################################
+    all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for inria_DG
+    num_cpu = 50
+    try: 
+        pool = Pool(num_cpu)
+        args_list = []
+        for i in range(num_cpu):
+            args_list.append((folder, all_files[i::num_cpu], output_dict))
+        # print((args_list))
+        # print(len(args_list))
+        output_dict = pool.starmap(get_prompt_for_list_for_random, args_list)
+    finally:
+        pool.close()
+        pool.join()
+    output_dict = dict(ChainMap(*output_dict))
+    # print('type of return is ', type(output_dict))
+    # print(output_dict)
+    with open('inria_DG_{}_prompt.pickle'.format(mode), 'wb') as handle:
+                pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    quit()
+
+    
+
+    ############################################
+    # Use original sequential computing method #
+    ############################################
     for file in tqdm(os.listdir(folder)):
         # print(file)
         # We would save the result of each image for inria dataset
