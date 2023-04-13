@@ -24,7 +24,7 @@ def IoU_single_object_mask(gt_mask, pred_mask):
 def get_IoU_for_3masks(gt_mask, pred_3masks):
     IoU_list = np.zeros(3)
     for i in range(3):
-        IoU_list[i], _ , _ = IoU_single_object_mask(gt_mask, pred_3masks[:, :, i])
+        IoU_list[i], _ , _ = IoU_single_object_mask(gt_mask, pred_3masks[i, :, :])
     return IoU_list
 
 def get_pixel_IOU_from_gt_mask(gt_file, prompt_point_dict, save_df, mode,
@@ -67,7 +67,9 @@ def get_pixel_IOU_from_gt_mask(gt_file, prompt_point_dict, save_df, mode,
             mask_file_list = glob.glob(os.path.join(prompt_mask_folder, mask_file_reg_exp))
             assert len(mask_file_list) == 1, 'Your mask file list length is not equal to 1: \n {}'.format(mask_file_list)
             mask_file = mask_file_list[0]
-            cur_mask = cv2.imread(mask_file) > 0    # Load the SAM-prompted mask
+            cur_mask = cv2.imread(mask_file)    # Load the SAM-prompted mask
+            # cur_mask = cv2.cvtColor(cur_mask, cv2.COLOR_BGR2RGB) # No need to change cuz this is self saved
+            cur_mask = np.swapaxes(cur_mask, 0, 2) > 0 
             # print(np.shape(cur_mask))
             _, _, conf_list = read_info_from_prmopt_mask_file(mask_file)
             cur_gt_mask = labels == i
@@ -75,8 +77,8 @@ def get_pixel_IOU_from_gt_mask(gt_file, prompt_point_dict, save_df, mode,
             # Take the index of the largest confidence or IOU
             ind_max_IOU = np.argmax(IoU_list)
             ind_max_conf = np.argmax(np.array(conf_list))
-            output_max_IOU_mask += cur_mask[:, :, ind_max_IOU]
-            output_max_conf_mask += cur_mask[:, :, ind_max_conf]
+            output_max_IOU_mask += cur_mask[ind_max_IOU, :, :, ]
+            output_max_conf_mask += cur_mask[ind_max_conf, :, :]
             break
         assert matched, 'There is patch in your gt_mask that does not match to your prompt point, stop!'
     # Do a simple union of them (original they are summed up together)
@@ -86,6 +88,22 @@ def get_pixel_IOU_from_gt_mask(gt_file, prompt_point_dict, save_df, mode,
     _, max_conf_num_intersection, max_conf_num_union = IoU_single_object_mask(mask_binary, output_max_conf_mask)
     save_df.loc[len(save_df)] = [gt_file, max_IOU_num_intersection, max_IOU_num_union,  
                     max_conf_num_intersection, max_conf_num_union]
+    # print(save_df)
+    # f = plt.figure(figsize=[15,5])
+    # ax1 = plt.subplot(131)
+    # ax1.imshow(output_max_IOU_mask)
+    # plt.axis('off')
+    # ax2 = plt.subplot(132)
+    # ax2.imshow(gt_mask*255)
+    # plt.axis('off')
+    # ax2 = plt.subplot(133)
+    # original_img = cv2.imread(os.path.join(gt_folder, gt_file).replace('.png','.jpg'))
+    # original_img = cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB)  # Change back to RBG
+    # ax2.imshow(original_img)
+    # plt.axis('off')
+    # plt.tight_layout()
+    # plt.savefig(gt_file.replace('.','_MaxIoUUnionMask.'))
+    # quit()
     return
 
 
@@ -150,7 +168,7 @@ def process_multiple_gt_mask(mode='center', file_list=None,
     
     prompt_point_dict = get_prompt_dict(mode=mode)
     if file_list is None:
-        all_files = [file for file in os.listdir(gt_folder) if '.png' in file] # .png is for inria_DG
+        all_files = [file for file in os.listdir(gt_folder) if '.png' in file and file in prompt_point_dict] # .png is for inria_DG
     else:
         all_files = file_list
     for file in tqdm(all_files):
@@ -169,7 +187,7 @@ def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
     folder = 'Combined_Inria_DeepGlobe_650/patches'
     prompt_point_dict = get_prompt_dict(mode=mode)
     all_files = [file for file in os.listdir(folder) if '.png' in file and file in prompt_point_dict] # .png is for inria_DG
-    num_cpu = 40
+    num_cpu = 50
     try: 
         pool = Pool(num_cpu)
         args_list = []
