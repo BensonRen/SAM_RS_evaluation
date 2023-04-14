@@ -42,7 +42,7 @@ def get_pixel_IOU_from_gt_mask(gt_file, prompt_point_dict, save_df, mode,
     # Get them into structured outputs
     (numLabels, labels, stats, centroids) = output
     assert numLabels > 1, 'your image is completely background but it is in the prompt_point_dict?'
-    if np.max(gt_mask > 1):    # This is to make the mask binary
+    if np.max(gt_mask) > 1:    # This is to make the mask binary
         mask_binary = gt_mask[:,:,0] > 122
     else:
         mask_binary = gt_mask[:, :, 0]

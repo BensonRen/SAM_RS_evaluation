@@ -42,7 +42,7 @@ def get_pixel_IOU_from_gt_mask(gt_file, prompt_point_dict, save_df, mode,
     # Get them into structured outputs
     (numLabels, labels, stats, centroids) = output
     assert numLabels > 1, 'your image is completely background but it is in the prompt_point_dict?'
-    if np.max(gt_mask > 1):    # This is to make the mask binary
+    if np.max(gt_mask) > 1:    # This is to make the mask binary
         mask_binary = gt_mask[:,:,0] > 122
     else:
         mask_binary = gt_mask[:, :, 0]
@@ -144,7 +144,8 @@ def process_single_gt_mask(gt_file, prompt_point_dict, save_df, mode,
             assert len(mask_file_list) == 1, 'Your mask file list length is not equal to 1: \n {}'.format(mask_file_list)
             mask_file = mask_file_list[0]
             # cur_mask = np.load(mask_file)
-            cur_mask = cv2.imread(mask_file) > 0
+            cur_mask = cv2.imread(mask_file)
+            cur_mask = np.swapaxes(cur_mask, 0, 2) > 0
             # print(np.shape(cur_mask))
             _, _, conf_list = read_info_from_prmopt_mask_file(mask_file)
             cur_gt_mask = labels == i
@@ -230,5 +231,9 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='random')
 
     # parallel processing of the pixel IOU value
-    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
-    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
+    # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
+    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
+
+    # parallel processing of the object IOU value
+    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
+    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
