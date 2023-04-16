@@ -115,12 +115,14 @@ def prompt_folder_with_point(mode, max_img=999999):
                 break
 
 def prompt_folder_with_mask(prompt_mask_dir, mode='mask', 
-                            mask_magnitude=50, mask_file_postfix='.tif', max_img=999999):
+                            mask_prop_dict={'choice':'step', 'mag':50}, 
+                            mask_file_postfix='.tif', 
+                            save_prompt=False, max_img=999999):
     """
     The function that prompts for the folder with all the masks inside
     """ 
     # Make the saving folder
-    save_mask_path = 'solar_pv_{}_prompt_save'.format(mode+'_step_{}'.format(mask_magnitude))
+    save_mask_path = 'solar_pv_{}_{}_{}_prompt_save'.format(mode, mask_prop_dict['choice'], mask_prop_dict['mag'])
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
     
@@ -155,16 +157,18 @@ def prompt_folder_with_mask(prompt_mask_dir, mode='mask',
 
         # Get the input points (they are all in the form of a list)
         for i in range(numLabels):
-            prompt_mask = mask_mul_labels == (i+1)
-            prompt_mask = prompt_mask.astype('float')
-            num_pixel = np.sum(prompt_mask)
+            prompt_mask_input = mask_mul_labels == (i+1)
+            num_pixel = np.sum(prompt_mask_input)
             if num_pixel == 0: # Identify background and skip this
                 continue
             # Get the save name sorted out
             save_mask_prefix = img_name.split('.')[0] + '_prompt_ind_{}_numPixel_{}'.format(i, num_pixel)
-            # A series of transformations to make it [-mag, mag] with shape [1, 256, 256]
-            prompt_mask *= 2*mask_magnitude
-            prompt_mask -= mask_magnitude
+            
+            # Make the prompt mask
+            prompt_mask_input = prompt_mask_input.astype('float')
+            prompt_mask = make_prompt_mask(prompt_mask_input, mask_prop_dict)
+            if save_prompt:
+                np.save(os.path.join(save_mask_path, save_mask_prefix+'_prompt_mask.npy'),prompt_mask)
             prompt_mask = cv2.resize(prompt_mask, (256, 256))
             prompt_mask = np.expand_dims(prompt_mask, 0)
             # Actual prompting the SAM
@@ -175,6 +179,20 @@ def prompt_folder_with_mask(prompt_mask_dir, mode='mask',
             if max_img < 0:
                 break
 
+def make_prompt_mask(prompt_mask_input, mask_prop_dict):
+    """
+    The function to make the prompt mask from a given binary map into the logit space of SAM
+    """
+    mag = mask_prop_dict['mag']
+    if mask_prop_dict['choice'] == 'step':
+        # A series of transformations to make it [-mag, mag] with shape [1, 256, 256]
+        prompt_mask = prompt_mask_input*2*mag
+        prompt_mask -= mag
+        return prompt_mask
+    elif mask_prop_dict['choice'] == 'step_zero_':
+        return prompt_mask * mag
+    
+        
 if __name__ == '__main__':
     ###############################################
     # Prompting the center/random points for the solar PV#
@@ -190,6 +208,7 @@ if __name__ == '__main__':
     # for mask_mg in [0.1, 0.5, 1, 5, 10, 20, 100, 200]:
     #     prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=mask_mg)
 
-    prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=200)
+    # prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=200)
+    prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=55, save_prompt=True, max_img=30)
 
     

@@ -118,7 +118,6 @@ def process_multiple_gt_mask(mode='center', file_list=None,
             save_df.to_csv('solar_pv_{}_object_wise_IOU.csv'.format(mode))
     return save_df
 
-
 def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
     folder='solar_masks'
     prompt_point_dict = get_prompt_dict(mode=mode)
