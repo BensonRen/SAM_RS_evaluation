@@ -75,6 +75,9 @@ def prompt_with_mask(predictor, input_mask, save_mask_path, save_mask_prefix, ):
                              save_mask_prefix + '_{}_{}_{}.png'.format(scores[0],scores[1],scores[2]))
     cv2.imwrite(save_name, np.swapaxes(masks, 0, 2)*255)
 
+def prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,):
+    return None
+
 def prompt_folder_with_point(mode, max_img=999999):
     # Make the saving folder
     save_mask_path = 'solar_pv_{}_prompt_save'.format(mode)
