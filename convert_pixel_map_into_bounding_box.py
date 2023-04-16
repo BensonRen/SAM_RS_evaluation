@@ -61,6 +61,7 @@ def get_BBs_from_single_mask_img(mask_file, mask_folder):
     return props
 
 def draw_on_img(img_path, props, save_name):
+    img = cv2.imread(img_path)
     f = plt.figure()
     for prop in props:
         print(prop)
@@ -69,14 +70,42 @@ def draw_on_img(img_path, props, save_name):
     
     plt.imshow(img)
     plt.savefig(save_name)
-if __name__ == '__main__':
-    mask_folder = './'
-    mask_file = '11ska625740_31_05.tif'
-    img_path = '11ska625740_31_05_original_img.tif'
 
-    # Get the props of bounding box
-    props = get_BBs_from_single_mask_img(mask_file, mask_folder)
-    print(props)
+def extract_full_folder(mask_folder, save_df_file, img_limit = 9999999):
+    """
+    Calls the get_BBs_from_single_mask for all masks within a folder and output a df file
+    """
+    save_df = pd.DataFrame(columns=['img_name','prop_ind','bbox','centroid','area'])
     
-    # Draw them 
-    draw_on_img(img_path, props, save_name='investigation/mask_to_BB/test.png')
+    for file in tqdm(os.listdir(mask_folder)):
+        if '.tif' not in file and '.png' not in file:
+            continue
+        # Extract the 
+        props = get_BBs_from_single_mask_img(file, mask_folder)
+        for ind, prop in enumerate(props):
+            save_df.loc[len(save_df)] = [file, ind, np.array(prop.bbox), 
+                                         np.array(prop.centroid), prop.area]
+        
+        # To do small scale tests
+        img_limit -= 1
+        if img_limit < 0:
+            break
+    save_df.to_csv(save_df_file)
+
+if __name__ == '__main__':
+    # mask_folder = './'
+    # mask_file = '11ska625740_31_05.tif'
+    # img_path = '11ska625740_31_05_original_img.tif'
+
+    # # Get the props of bounding box
+    # props = get_BBs_from_single_mask_img(mask_file, mask_folder)
+    # print(props)
+    
+    # # Draw them 
+    # draw_on_img(img_path, props, save_name='investigation/mask_to_BB/test.png')
+
+    # mask_folder = 'solar_masks' # The GT solar pv masks
+    # mask_folder = 'solar_finetune_mask' # The detector output solar pv masks
+    mask_folder = 'Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
+    extract_full_folder(mask_folder=mask_folder, 
+                        save_df_file=os.path.join(mask_folder, 'bbox.csv'))
