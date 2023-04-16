@@ -6,6 +6,7 @@ import sys
 import os
 from tqdm import tqdm
 import pickle
+from scipy import signal
 sys.path.append("..")
 from segment_anything import sam_model_registry, SamPredictor
 
@@ -184,13 +185,25 @@ def make_prompt_mask(prompt_mask_input, mask_prop_dict):
     The function to make the prompt mask from a given binary map into the logit space of SAM
     """
     mag = mask_prop_dict['mag']
+    background = mask_prop_dict['background']
     if mask_prop_dict['choice'] == 'step':
         # A series of transformations to make it [-mag, mag] with shape [1, 256, 256]
-        prompt_mask = prompt_mask_input*2*mag
-        prompt_mask -= mag
-        return prompt_mask
-    elif mask_prop_dict['choice'] == 'step_zero_':
-        return prompt_mask * mag
+        prompt_mask = prompt_mask_input*mag
+    elif mask_prop_dict['choice'] == 'kernel':
+        prompt_mask = prompt_mask_input*mag
+        # kernel = np.array([[0, 1, 2, 1, 0],
+        #                     [1, 2, 3, 2, 1],
+        #                     [2, 3, 4, 3, 2],
+        #                     [1, 2, 3, 2, 1],
+        #                     [0, 1, 2, 1, 0],
+        #                     ], dtype='float') # Gx + j*Gy
+        kernel = np.ones((mask_prop_dict['kernel_size'],mask_prop_dict['kernel_size']))
+        # kernel /= np.sum(kernel)/4
+        prompt_mask = signal.convolve2d(prompt_mask_input, kernel, boundary='symm', mode='same')
+    
+    prompt_mask[prompt_mask == 0] = background
+    prompt_mask = cv2.resize(prompt_mask, (256, 256))    
+    return prompt_mask
     
         
 if __name__ == '__main__':
