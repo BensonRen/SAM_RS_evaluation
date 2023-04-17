@@ -9,7 +9,7 @@ from skimage.io import imread
 import matplotlib.pyplot as plt
 from skimage.segmentation import mark_boundaries
 from skimage.measure import label, regionprops
-
+from prompt_solar import show_box
 
 
 from skimage.morphology import label
@@ -63,10 +63,14 @@ def get_BBs_from_single_mask_img(mask_file, mask_folder):
 def draw_on_img(img_path, props, save_name):
     img = cv2.imread(img_path)
     f = plt.figure()
+    plt.imshow(img)
     for prop in props:
         print(prop)
         print(prop.bbox)
-        cv2.rectangle(img, (prop.bbox[1], prop.bbox[0]), (prop.bbox[3], prop.bbox[2]), (255, 0, 0), 2)
+        new_bbox = np.array(prop.bbox)
+        new_bbox = new_bbox[[1,0,3,2]]
+        show_box(new_bbox, plt.gca())
+        # cv2.rectangle(img, (prop.bbox[1], prop.bbox[0]), (prop.bbox[3], prop.bbox[2]), (255, 0, 0), 2)
     
     plt.imshow(img)
     plt.savefig(save_name)
@@ -93,19 +97,19 @@ def extract_full_folder(mask_folder, save_df_file, img_limit = 9999999):
     save_df.to_csv(save_df_file)
 
 if __name__ == '__main__':
-    # mask_folder = './'
-    # mask_file = '11ska625740_31_05.tif'
-    # img_path = '11ska625740_31_05_original_img.tif'
+    mask_folder = './'
+    mask_file = '11ska625740_31_05.tif'
+    img_path = '11ska625740_31_05_original_img.tif'
 
-    # # Get the props of bounding box
-    # props = get_BBs_from_single_mask_img(mask_file, mask_folder)
-    # print(props)
+    # Get the props of bounding box
+    props = get_BBs_from_single_mask_img(mask_file, mask_folder)
+    print(props)
     
     # # Draw them 
-    # draw_on_img(img_path, props, save_name='investigation/mask_to_BB/test.png')
+    draw_on_img(img_path, props, save_name='investigation/mask_to_BB/test.png')
 
     # mask_folder = 'solar_masks' # The GT solar pv masks
     # mask_folder = 'solar_finetune_mask' # The detector output solar pv masks
-    mask_folder = 'Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
-    extract_full_folder(mask_folder=mask_folder, 
-                        save_df_file=os.path.join(mask_folder, 'bbox.csv'))
+    # mask_folder = 'Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
+    # extract_full_folder(mask_folder=mask_folder, 
+    #                     save_df_file=os.path.join(mask_folder, 'bbox.csv'))

@@ -208,9 +208,9 @@ if __name__ == '__main__':
     # ({} intersection pixels, {} union pixels)'.format(num_intersection_tot/num_union_tot*100,num_intersection_tot,num_union_tot))
     
     # Pixel IoU for the SAM adjusted mask
-    save_df = evaluated_prompted_mask(mask_prompt_folder='solar_finetune_mask', 
-                                      SAM_mask_fodlder='solar_pv_mask_step_20_prompt_save',
-                                      plot_compare=True,
-                                       num_limit=30)
-    save_df.to_csv('detector_pixel_iou.csv')
+    # save_df = evaluated_prompted_mask(mask_prompt_folder='solar_finetune_mask', 
+    #                                   SAM_mask_fodlder='solar_pv_mask_step_20_prompt_save',
+    #                                   plot_compare=True,
+    #                                    num_limit=30)
+    # save_df.to_csv('detector_pixel_iou.csv')
     

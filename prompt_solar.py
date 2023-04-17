@@ -7,6 +7,8 @@ import os
 from tqdm import tqdm
 import pickle
 from scipy import signal
+import pandas as pd
+import re # Remove duplicate string
 sys.path.append("..")
 from segment_anything import sam_model_registry, SamPredictor
 
@@ -76,7 +78,78 @@ def prompt_with_mask(predictor, input_mask, save_mask_path, save_mask_prefix, ):
     cv2.imwrite(save_name, np.swapaxes(masks, 0, 2)*255)
 
 def prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,):
-    return None
+    masks, _, _ = predictor.predict(
+            box=input_bbox[None, :],   # This is not sure
+            multimask_output=False,)
+    # make the save path
+    save_name = os.path.join(save_mask_path, 
+                             save_mask_prefix + '.png')
+    # print(np.shape(masks))
+    cv2.imwrite(save_name, masks.astype(np.uint8)[0, :, :]*255)
+    # np.save(save_name, masks)
+
+
+def prompt_folder_with_bbox(mask_folder, bbox_df_file='bbox.csv',
+                            img_folder = 'solar-pv',
+                            max_img=999999):
+    # Make the saving folder
+    save_mask_path = 'solar_pv_bbox_prompt_save_{}'.format(mask_folder)
+    if not os.path.isdir(save_mask_path):
+        os.makedirs(save_mask_path)
+
+    # Load the points to be prompted
+    print('...loading pickel of prompt points')
+    df = pd.read_csv(os.path.join(mask_folder, bbox_df_file),
+                    index_col=0)
+    
+    # Load predictor
+    print('...loading predictor')
+    predictor = load_predictor()
+    prev_img_path = None
+
+    # Loop over all the keys inside the prompt_point_dict
+    for ind, row in tqdm(df.iterrows(), total=df.shape[0]):
+        # Get image path
+        img_path = os.path.join(img_folder, row['img_name'])
+        # Make sure this image exist
+        if not os.path.exists(img_path):
+            print('Warning!!! {} does not exist, bypassing now'.format(img_path))
+            continue
+
+        if img_path != prev_img_path: # Only if the image is different from last one
+            # Load the image and transform color
+            image = cv2.imread(img_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Why do we need to cvt color?
+            # Set the predictor
+            predictor.set_image(image)
+
+        # Get the input points (they are all in the form of a list)
+        save_mask_prefix = row['img_name'].split('.')[0] + '_prompt_ind_{}_size_{}'.format(row['prop_ind'], row['area'])
+        input_bbox = process_str_bbox_into_bbox(row['bbox'])    # Adding permutation to make this aligned
+        prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,)
+        
+        # update the prev_img_path
+        prev_img_path = img_path
+
+        if max_img is not None:
+            max_img -= 1
+            if max_img < 0:
+                break
+
+def process_str_bbox_into_bbox(bbox_str,
+                            bbox_permutation=[1,0,3,2],):
+    """
+    Because the bbox saved in pandas df is in format of string and out of position
+    process it into desired format of a np array and permutate it into position
+    """
+    # First remove the [ ]
+    processed_str = bbox_str.replace('[', '').replace(']','').strip()
+    processed_str = re.sub(' +',' ', processed_str)
+    numbers_str_list = processed_str.split(' ')
+    assert len(numbers_str_list) == 4, 'Your bbox in df string is not split into 4 piece?\
+          str is {} -> {}'.format(bbox_str, numbers_str_list)
+    return  np.array([int(a) for a in numbers_str_list])[bbox_permutation]
+
 
 def prompt_folder_with_point(mode, max_img=999999):
     # Make the saving folder
@@ -225,6 +298,10 @@ if __name__ == '__main__':
     #     prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=mask_mg)
 
     # prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=200)
-    prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=55, save_prompt=True, max_img=30)
+    # prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=55, save_prompt=True, max_img=30)
+
+    mask_folder = 'solar_masks'
+    # mask_folder = 'solar_finetune_mask'
+    prompt_folder_with_bbox(mask_folder)
 
     
