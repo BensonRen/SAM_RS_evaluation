@@ -48,7 +48,10 @@ def get_kth_for_all(num_to_find_list, k_list, conected_comp_label_array, error_c
     assert np.sum(return_list == error_code) == 0, 'Not all number found its k_th num, check!'
     return return_list
 
-def get_list_of_centers(folder, img_name, output_dict, num_count_dict, verbose=False):
+def get_list_of_centers(folder, img_name, output_dict, num_count_dict=None, 
+                        verbose=False, size_limit=0):
+    if 'cloud' in folder:
+        size_limit = 50
     # Read the image mask
     if verbose:
         print('...reading image')
@@ -80,14 +83,14 @@ def get_list_of_centers(folder, img_name, output_dict, num_count_dict, verbose=F
         num_pixel = np.sum(mask_mul_labels == (i+1))
         # print(num_pixel)
         # First identify background
-        if num_pixel == 0:
+        if num_pixel <= size_limit:
             continue
         # First lets make sure that the centroid position is inside the current class
         if labels[int(centroids[i, 1]), int(centroids[i, 0])] == i: # This means this is within current panel
             if img_name not in output_dict:
                 output_dict[img_name] = []
             output_dict[img_name].append((int(centroids[i, 0]), int(centroids[i, 1])))
-            num_count_dict['center'] += 1
+            # num_count_dict['center'] += 1
         else: # We need to find the closest component within such component
             midpoint_outside_index_list.append(i+1)
             k_list.append(num_pixel // 2)
@@ -114,30 +117,16 @@ def get_list_of_centers(folder, img_name, output_dict, num_count_dict, verbose=F
             output_dict[img_name] = []
         output_dict[img_name].append((int(w_index_flat[mid_point_index]), int(l_index_flat[mid_point_index])))
         assert indicator_mask[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == 1, 'in closest setting, x,y are possibly flipped'
-        num_count_dict['midpoint'] += 1
-        num_count_dict['set_of_non_concave_panel_imgs'].add(img_name)
+        # num_count_dict['midpoint'] += 1
+        # num_count_dict['set_of_non_concave_panel_imgs'].add(img_name)
     
-    return output_dict, num_count_dict
-    
-    # mask_mul_labels = mask_binary * (labels + 1) # Label + 1 is to make sure they all start from 1
-    # num_to_find_list = np.arange(1, numLabels+1)
-    # k_list = stats[:, -1] // 2
-    # kth_list = get_kth_for_all(num_to_find_list, k_list, np.reshape(mask_mul_labels, [-1, 1]))
-
-    #         # indicator_mask = mask_mul_labels == (i + 1)
-    #         # list_of_component = np.reshape(indicator_mask, [-1, 1])
-    #         # mid_point_index = k_th_occurence(num_pixel // 2, list_of_component)
-    #         mid_point_index = kth_list[i]
-    #         if img_name not in output_dict:
-    #             output_dict[img_name] = []
-    #         output_dict[img_name].append((int(w_index_flat[mid_point_index]), int(l_index_flat[mid_point_index])))
-    #         # assert indicator_mask[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == 1, 'in closest setting, x,y are possibly flipped'
-    #         assert mask_mul_labels[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == i + 1, 'in closest setting, x,y are possibly flipped'
-    #         num_count_dict['midpoint'] += 1
-    #         num_count_dict['set_of_non_concave_panel_imgs'].add(img_name)
+    return output_dict
 
 
-def get_list_of_random_inside_points(folder, img_name, output_dict):
+def get_list_of_random_inside_points(folder, img_name, output_dict, 
+                                     size_limit=0):
+    if 'cloud' in folder:
+        size_limit = 50
     # Read the image mask
     mask = cv2.imread(os.path.join(folder, img_name))
     # Find the connected component
@@ -167,7 +156,7 @@ def get_list_of_random_inside_points(folder, img_name, output_dict):
         num_pixel = np.sum(mask_mul_labels == (i+1))
         # print(num_pixel)
         # First identify background
-        if num_pixel == 0:
+        if num_pixel <= size_limit:
             continue
         # Directly choose an random point
         indicator_mask = mask_mul_labels == (i + 1)
@@ -178,6 +167,12 @@ def get_list_of_random_inside_points(folder, img_name, output_dict):
             output_dict[img_name] = []
         output_dict[img_name].append((int(w_index_flat[mid_point_index]), int(l_index_flat[mid_point_index])))
         assert indicator_mask[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == 1, 'in closest setting, x,y are possibly flipped'
+    return output_dict
+
+def get_prompt_for_list_for_center(folder, file_list, output_dict):
+    for file in file_list:
+        get_list_of_centers(folder=folder,img_name=file, 
+                        output_dict=output_dict)
     return output_dict
 
 def get_prompt_for_list_for_random(folder, file_list, output_dict):
@@ -191,11 +186,12 @@ if __name__ == '__main__':
     output_dict = {}
 
     # dataset = 'inria'
-    dataset = 'inria_DG'
+    # dataset = 'inria_DG'
     # dataset = 'Solar'
+    # dataset = 'cloud'
 
-    # mode = 'center'
-    mode = 'random'
+    mode = 'center'
+    # mode = 'random'
 
     # Run one test: Solar
     # get_list_of_centers(folder='solar_masks',img_name='11ska655800_20_10.tif', 
@@ -207,9 +203,10 @@ if __name__ == '__main__':
 
 
     # # Run all
-    # folder = 'solar_masks'
-    # folder = 'inria/train/gt'
-    folder = 'Combined_Inria_DeepGlobe_650/patches'
+    # folder = 'solar_masks'                                # Solar-pv
+    # folder = 'Combined_Inria_DeepGlobe_650/patches'       # Inria-DG
+    folder = 'cloud/train_processed'                      # Cloud
+    # folder = 'DG_road/train'                              # DG_road
     # for file in os.listdir(folder):
     # k, k_limit = 0, 100
     k, k_limit = 0, 9999999999
@@ -217,7 +214,9 @@ if __name__ == '__main__':
     ######################################
     # Use some parallel computing method #
     ######################################
-    all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for inria_DG
+    # all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for inria_DG
+    all_files = [file for file in os.listdir(folder) if 'gt' in file] # .png is for cloud
+    # all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for Road_DG
     num_cpu = 50
     try: 
         pool = Pool(num_cpu)
@@ -226,14 +225,21 @@ if __name__ == '__main__':
             args_list.append((folder, all_files[i::num_cpu], output_dict))
         # print((args_list))
         # print(len(args_list))
-        output_dict = pool.starmap(get_prompt_for_list_for_random, args_list)
+        if mode == 'center':
+            output_dict = pool.starmap(get_prompt_for_list_for_center, args_list)
+        else:
+            output_dict = pool.starmap(get_prompt_for_list_for_random, args_list)
     finally:
         pool.close()
         pool.join()
     output_dict = dict(ChainMap(*output_dict))
-    # print('type of return is ', type(output_dict))
-    # print(output_dict)
-    with open('inria_DG_{}_prompt.pickle'.format(mode), 'wb') as handle:
+    # with open('inria_DG_{}_prompt.pickle'.format(mode), 'wb') as handle:
+    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
+    # with open('DG_road_{}_prompt.pickle'.format(mode), 'wb') as handle:
+    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    with open('cloud_{}_prompt.pickle'.format(mode), 'wb') as handle:
                 pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
     quit()
 

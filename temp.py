@@ -203,16 +203,78 @@ def evaluate_with_mask(input_mask, image_name, gt_mask_name, save_name=''):
     # plt.savefig(os.path.join('/home/sr365/SAM/investigation/logit_distribution', 
     #                             os.path.basename(image_name).replace('.','_mask_original_tot')))
 
+def visualize_single_img_and_prompt():
+    image = cv2.imread('solar-pv/11ska625740_31_05.tif')
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    sam_checkpoint = "sam_vit_h_4b8939.pth"
+    model_type = "vit_h"
+
+    device = "cuda"
+
+    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+    sam.to(device=device)
+
+    predictor = SamPredictor(sam)
+    predictor.set_image(image)
+    input_point = np.array([[140, 25]])
+    input_label = np.array([1])
+
+    plt.figure(figsize=(10,10))
+    plt.imshow(image)
+    show_points(input_point, input_label, plt.gca())
+    plt.axis('off')
+    # plt.show() 
+    plt.savefig('investigation/exp_design_illustration/point_with_img.png')
+
+    masks, scores, logits = predictor.predict(
+    point_coords=input_point,
+    point_labels=input_label,
+    multimask_output=True,
+    )
+
+    for i, (mask, score) in enumerate(zip(masks, scores)):
+        plt.figure(figsize=(10,10))
+        plt.imshow(image)
+        show_mask(mask, plt.gca())
+        show_points(input_point, input_label, plt.gca())
+        plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
+        plt.axis('off')
+        # plt.show()
+        plt.savefig('investigation/exp_design_illustration/point_prompt_masks_{}.png'.format(i))
+
+    input_box = np.array([127, 16, 158, 39])
+    masks, _, _ = predictor.predict(
+    point_coords=None,
+    point_labels=None,
+    box=input_box[None, :],
+    multimask_output=False,
+    )
+
+    plt.figure(figsize=(10, 10))
+    plt.imshow(image)
+    show_mask(masks[0], plt.gca())
+    show_box(input_box, plt.gca())
+    plt.axis('off')
+    # plt.show()
+    plt.savefig('investigation/exp_design_illustration/box_prompted_mask.png')
+  
+
+
 if __name__ == '__main__':
-    mask_prop_dict = {'choice':'kernel', 
-                        'mag':10,
-                        'background': -10,
-                        'kernel_size':10}
-    mask = visualize_prompt(mask_prop_dict)
-    evaluate_with_mask(mask, image_name='11ska625740_31_05_original_img.tif', 
-                       gt_mask_name='11ska625740_31_05.tif',
-                       save_name='{}_mag_{}_bg_{}_ks_{}'.format(mask_prop_dict['choice']))
+    # Testing different prompt shapes
+    # mask_prop_dict = {'choice':'kernel', 
+    #                     'mag':10,
+    #                     'background': -10,
+    #                     'kernel_size':10}
+    # mask = visualize_prompt(mask_prop_dict)
+    # evaluate_with_mask(mask, image_name='11ska625740_31_05_original_img.tif', 
+    #                    gt_mask_name='11ska625740_31_05.tif',
+    #                    save_name='{}_mag_{}_bg_{}_ks_{}'.format(mask_prop_dict['choice']))
     
     
     
     #visualize_SAM_logits_etc()
+
+    visualize_single_img_and_prompt()
+

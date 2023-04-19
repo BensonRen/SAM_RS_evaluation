@@ -97,19 +97,20 @@ def extract_full_folder(mask_folder, save_df_file, img_limit = 9999999):
     save_df.to_csv(save_df_file)
 
 if __name__ == '__main__':
-    mask_folder = './'
-    mask_file = '11ska625740_31_05.tif'
-    img_path = '11ska625740_31_05_original_img.tif'
+    # mask_folder = './'
+    # mask_file = '11ska625740_31_05.tif'
+    # img_path = '11ska625740_31_05_original_img.tif'
 
-    # Get the props of bounding box
-    props = get_BBs_from_single_mask_img(mask_file, mask_folder)
-    print(props)
+    # # Get the props of bounding box
+    # props = get_BBs_from_single_mask_img(mask_file, mask_folder)
+    # print(props)
     
     # # Draw them 
-    draw_on_img(img_path, props, save_name='investigation/mask_to_BB/test.png')
+    # draw_on_img(img_path, props, save_name='investigation/mask_to_BB/test.png')
 
     # mask_folder = 'solar_masks' # The GT solar pv masks
     # mask_folder = 'solar_finetune_mask' # The detector output solar pv masks
     # mask_folder = 'Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
-    # extract_full_folder(mask_folder=mask_folder, 
-    #                     save_df_file=os.path.join(mask_folder, 'bbox.csv'))
+    mask_folder = 'DG_road/train'                       # The GT for Inria Road
+    extract_full_folder(mask_folder=mask_folder, 
+                        save_df_file=os.path.join(mask_folder, 'bbox.csv'))
