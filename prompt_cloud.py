@@ -77,7 +77,7 @@ def prompt_folder_with_point(mode, max_img=999999):
 
     # Load the points to be prompted
     print('...loading pickel of prompt points')
-    with open('cloud_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    with open('point_prompt_pickles/cloud_{}_prompt.pickle'.format(mode), 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     
     # Load predictor
@@ -87,7 +87,7 @@ def prompt_folder_with_point(mode, max_img=999999):
     # Loop over all the keys inside the prompt_point_dict
     for img_name in tqdm(prompt_point_dict.keys()):
         # Get image path
-        img_path = os.path.join('cloud/train_processed', img_name.replace('gt_','img_'))
+        img_path = os.path.join('datasets/cloud/train_processed', img_name.replace('gt_','img_'))
         # Make sure this image exist
         if not os.path.exists(img_path):
             print('Warning!!! {} does not exist, bypassing now'.format(img_path))
@@ -121,7 +121,7 @@ def prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,):
     # np.save(save_name, masks)
 
 def prompt_folder_with_bbox(mask_folder, bbox_df_file='bbox.csv',
-                            img_folder = 'cloud/train_processed',
+                            img_folder = 'datasets/cloud/train_processed',
                             max_img=999999):
     # Make the saving folder
     save_mask_path = 'cloud_bbox_prompt_save_{}'.format(mask_folder)
@@ -187,9 +187,9 @@ if __name__ == '__main__':
     # Prompting the center/random points for the cloud#
     ###############################################
     prompt_folder_with_point(mode='random')
-    prompt_folder_with_point(mode='center')
+    # prompt_folder_with_point(mode='center')
 
     # Prompting with bbox
-    # mask_folder = 'cloud/train_processed'
+    # mask_folder = 'datasets/cloud/train_processed'
     # prompt_folder_with_bbox(mask_folder)
     

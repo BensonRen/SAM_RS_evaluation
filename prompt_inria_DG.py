@@ -77,7 +77,7 @@ def prompt_folder_with_point(mode, max_img=999999):
 
     # Load the points to be prompted
     print('...loading pickel of prompt points')
-    with open('inria_DG_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    with open('point_prompt_pickles/inria_DG_{}_prompt.pickle'.format(mode), 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     
     # Load predictor
@@ -87,7 +87,7 @@ def prompt_folder_with_point(mode, max_img=999999):
     # Loop over all the keys inside the prompt_point_dict
     for img_name in tqdm(prompt_point_dict.keys()):
         # Get image path
-        img_path = os.path.join('Combined_Inria_DeepGlobe_650/patches', img_name.replace('.png','.jpg'))
+        img_path = os.path.join('datasets/Combined_Inria_DeepGlobe_650/patches', img_name.replace('.png','.jpg'))
         # Make sure this image exist
         if not os.path.exists(img_path):
             print('Warning!!! {} does not exist, bypassing now'.format(img_path))
@@ -121,10 +121,10 @@ def prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,):
     # np.save(save_name, masks)
 
 def prompt_folder_with_bbox(mask_folder, bbox_df_file='bbox.csv',
-                            img_folder = 'Combined_Inria_DeepGlobe_650/patches',
+                            img_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches',
                             max_img=999999):
     # Make the saving folder
-    save_mask_path = 'inria_DG_bbox_prompt_save_{}'.format(mask_folder)
+    save_mask_path = 'point_prompt_pickles/inria_DG_bbox_prompt_save_{}'.format(mask_folder)
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
 
@@ -190,6 +190,7 @@ if __name__ == '__main__':
     # prompt_folder_with_point(mode='center')
 
     # Prompting with bbox
-    mask_folder = 'Combined_Inria_DeepGlobe_650/patches'
+    # mask_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches'         # The ground truth boxes
+    mask_folder = 'detector_predictions/inria_dg'           # The detecotr output boxes
     prompt_folder_with_bbox(mask_folder)
     

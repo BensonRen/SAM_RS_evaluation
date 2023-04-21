@@ -75,18 +75,25 @@ def draw_on_img(img_path, props, save_name):
     plt.imshow(img)
     plt.savefig(save_name)
 
-def extract_full_folder(mask_folder, save_df_file, img_limit = 9999999):
+def extract_full_folder(mask_folder, save_df_file, 
+                        img_limit = 9999999, size_limit=0):
     """
     Calls the get_BBs_from_single_mask for all masks within a folder and output a df file
     """
+
+    if 'cloud' in mask_folder:       # Skip the tiny ones in cloud dataset
+        size_limit = 50
     save_df = pd.DataFrame(columns=['img_name','prop_ind','bbox','centroid','area'])
     
     for file in tqdm(os.listdir(mask_folder)):
-        if '.tif' not in file and '.png' not in file:
+        if '.tif' not in file and '.png' not in file and 'gt_patch' not in file:
             continue
         # Extract the 
         props = get_BBs_from_single_mask_img(file, mask_folder)
         for ind, prop in enumerate(props):
+            if prop.area <= size_limit:
+                # print('size = {} <= {}, skip'.format(prop.area, size_limit))
+                continue
             save_df.loc[len(save_df)] = [file, ind, np.array(prop.bbox), 
                                          np.array(prop.centroid), prop.area]
         
@@ -108,9 +115,12 @@ if __name__ == '__main__':
     # # Draw them 
     # draw_on_img(img_path, props, save_name='investigation/mask_to_BB/test.png')
 
-    # mask_folder = 'solar_masks' # The GT solar pv masks
-    # mask_folder = 'solar_finetune_mask' # The detector output solar pv masks
-    # mask_folder = 'Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
-    mask_folder = 'DG_road/train'                       # The GT for Inria Road
+    # mask_folder = 'datasets/solar_masks' # The GT solar pv masks
+    # mask_folder = 'detector_predictions/solar_finetune_mask' # The detector output solar pv masks
+    # mask_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
+    # mask_folder = 'detector_predictions/inria_dg'               # The inria_DG detector output mask
+    # mask_folder = 'datasets/DG_road/train'                       # The GT for Inria Road
+    mask_folder = 'datasets/cloud/train_processed'                       # The GT for Cloud
+
     extract_full_folder(mask_folder=mask_folder, 
                         save_df_file=os.path.join(mask_folder, 'bbox.csv'))

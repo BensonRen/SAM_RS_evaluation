@@ -28,11 +28,11 @@ def get_IoU_for_3masks(gt_mask, pred_3masks):
     return IoU_list
 
 def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df, mode,
-    gt_folder='Combined_Inria_DeepGlobe_650/patches'):
+    gt_folder='datasets/cloud/train_processed', size_limit=50):
     """
     The function to get the pixel IOU related information for a single gt_file
     """
-    prompt_mask_folder = 'inria_DG_{}_prompt_save'.format(mode)
+    prompt_mask_folder = 'SAM_output/cloud_{}_prompt_save'.format(mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -54,7 +54,7 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
         num_pixel = np.sum(mask_mul_labels == (i+1))
         # print(num_pixel)
         # First identify background
-        if num_pixel == 0:
+        if num_pixel <= size_limit:
             continue
         matched = False
         for prompt_ind, prompt_point in enumerate(prompt_list):
@@ -62,7 +62,7 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
             matched = True
-            mask_file_reg_exp = '{}_prompt_ind_{}_*.png'.format(gt_file.replace('.png',''), prompt_ind)
+            mask_file_reg_exp = '{}_prompt_ind_{}_*.png'.format(gt_file.replace('.TIF',''), prompt_ind)
             # print('reg_exp=', mask_file_reg_exp)
             mask_file_list = glob.glob(os.path.join(prompt_mask_folder, mask_file_reg_exp))
             assert len(mask_file_list) == 1, 'Your mask file list length is not equal to 1: \n {}'.format(mask_file_list)
@@ -107,10 +107,10 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
     return
 
 def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mode,
-            gt_folder='Combined_Inria_DeepGlobe_650/patches'):
+            gt_folder='datasets/cloud/train_processed', size_limit=50):
     if gt_file not in prompt_point_dict:    # This is an empty image with no buildings
         return
-    prompt_mask_folder = 'inria_DG_{}_prompt_save'.format(mode)
+    prompt_mask_folder = 'SAM_output/cloud_{}_prompt_save'.format(mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -129,7 +129,7 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
         num_pixel = np.sum(mask_mul_labels == (i+1))
         # print(num_pixel)
         # First identify background
-        if num_pixel == 0:
+        if num_pixel <= size_limit:
             continue
         matched = False
         for prompt_ind, prompt_point in enumerate(prompt_list):
@@ -137,7 +137,7 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
             matched = True
-            mask_file_reg_exp = '{}_prompt_ind_{}_*.png'.format(gt_file.replace('.png',''), prompt_ind)
+            mask_file_reg_exp = '{}_prompt_ind_{}_*.png'.format(gt_file.replace('.TIF',''), prompt_ind)
             # print('reg_exp=', mask_file_reg_exp)
             mask_file_list = glob.glob(os.path.join(prompt_mask_folder, mask_file_reg_exp))
             assert len(mask_file_list) == 1, 'Your mask file list length is not equal to 1: \n {}'.format(mask_file_list)
@@ -155,7 +155,7 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
 
 def process_multiple_gt_mask(mode='center', file_list=None,
                              pixel_IOU_mode=False):
-    gt_folder='Combined_Inria_DeepGlobe_650/patches'
+    gt_folder='datasets/cloud/train_processed'
     # Setup the save_df
     if pixel_IOU_mode:
         save_df = pd.DataFrame(columns=['img_name', 'max_IOU_num_pixel_intersection', 
@@ -168,7 +168,7 @@ def process_multiple_gt_mask(mode='center', file_list=None,
     
     prompt_point_dict = get_prompt_dict(mode=mode)
     if file_list is None:
-        all_files = [file for file in os.listdir(gt_folder) if '.png' in file and file in prompt_point_dict] # .png is for inria_DG
+        all_files = [file for file in os.listdir(gt_folder) if 'gt_patch' in file and file in prompt_point_dict] # gt_patch is for inria_DG
     else:
         all_files = file_list
     for file in tqdm(all_files):
@@ -178,15 +178,15 @@ def process_multiple_gt_mask(mode='center', file_list=None,
             process_single_point_prompt_gt_mask(file, prompt_point_dict, save_df, mode=mode)
     if file_list is None: # Then this is not parallel mode
         if pixel_IOU_mode:
-            save_df.to_csv('inria_DG_{}_pixel_wise_IOU.csv'.format(mode))
+            save_df.to_csv('cloud_{}_pixel_wise_IOU.csv'.format(mode))
         else:
-            save_df.to_csv('inria_DG_{}_object_wise_IOU.csv'.format(mode))
+            save_df.to_csv('cloud_{}_object_wise_IOU.csv'.format(mode))
     return save_df
 
 def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
-    folder = 'Combined_Inria_DeepGlobe_650/patches'
+    folder = 'datasets/cloud/train_processed'
     prompt_point_dict = get_prompt_dict(mode=mode)
-    all_files = [file for file in os.listdir(folder) if '.png' in file and file in prompt_point_dict] # .png is for inria_DG
+    all_files = [file for file in os.listdir(folder) if 'gt_patch' in file and file in prompt_point_dict] # gt_patch is for inria_DG
     num_cpu = 50
     try: 
         pool = Pool(num_cpu)
@@ -201,25 +201,25 @@ def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
         pool.join()
     combined_df = pd.concat(output_dfs)
     if pixel_IOU_mode:
-        combined_df.to_csv('inria_DG_{}_pixel_wise_IOU.csv'.format(mode))
+        combined_df.to_csv('cloud_{}_pixel_wise_IOU.csv'.format(mode))
     else:
-        combined_df.to_csv('inria_DG_{}_object_wise_IOU.csv'.format(mode))
+        combined_df.to_csv('cloud_{}_object_wise_IOU.csv'.format(mode))
 
 def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None, 
-                                                gt_folder='datasets/Combined_Inria_DeepGlobe_650/patches',
+                                                gt_folder='datasets/cloud/train_processed',
                                                 bbox_csv_name='bbox.csv',
                                                 img_size=(512, 512)):
     """
     The function that evaluates the pixel-wise IoU for each image in the file_list
     """
     save_df = pd.DataFrame(columns=['img_name','intersection','union'])
-    SAM_prompt_result_folder = 'inria_DG_bbox_prompt_save_{}'.format(mask_folder)
+    SAM_prompt_result_folder = 'SAM_output/cloud_bbox_prompt_save_{}'.format(mask_folder.replace('datasets/',''))
     if file_list is None:
         df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
         file_list = list(set(df['img_name'].values))    # use set to remove duplicates
     for file in tqdm(file_list):
         cur_mask_list = glob.glob(os.path.join(SAM_prompt_result_folder, 
-                                               '{}*'.format(file.replace('.png',''))))
+                                               '{}*'.format(file.replace('.TIF',''))))
         gt_mask_path = os.path.join(gt_folder, file)
         if os.path.exists(gt_mask_path):
             gt_mask = cv2.imread(gt_mask_path)[:, :, 0] > 0
@@ -245,7 +245,7 @@ def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
     """
     df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
     file_list = list(set(df['img_name'].values))    # use set to remove duplicates
-    num_cpu = 40
+    num_cpu = 50
     try: 
         pool = Pool(num_cpu)
         args_list = []
@@ -256,12 +256,12 @@ def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
         pool.close()
         pool.join()
     combined_df = pd.concat(output_dfs)
-    combined_df.to_csv('inria_DG_{}_pixel_wise_IOU_{}.csv'.format('bbox_prompt', 
+    combined_df.to_csv('cloud_{}_pixel_wise_IOU_{}.csv'.format('bbox_prompt', 
                                                                    mask_folder.replace('/','')))
 
 
 def get_prompt_dict(mode):
-    with open('inria_DG_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    with open('point_prompt_pickles/cloud_{}_prompt.pickle'.format(mode), 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     return prompt_point_dict
 
@@ -284,12 +284,13 @@ if __name__ == '__main__':
 
     # parallel processing of the pixel IOU value
     # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
-    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
+    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
 
     # parallel processing of the object IOU value
     # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
     # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
 
     # parallel processing of the pxiel IOU for BBox prompt
-    # parallel_pixel_IOU_calc_from_bbox_prompt('datasets/Combined_Inria_DeepGlobe_650/patches')
-    parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/inria_dg')
+    # parallel_pixel_IOU_calc_from_bbox_prompt('datasets/cloud/train_processed')
+
+    # parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/')
