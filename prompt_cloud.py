@@ -186,10 +186,11 @@ if __name__ == '__main__':
     ###############################################
     # Prompting the center/random points for the cloud#
     ###############################################
-    prompt_folder_with_point(mode='random')
+    # prompt_folder_with_point(mode='random')
     # prompt_folder_with_point(mode='center')
 
     # Prompting with bbox
     # mask_folder = 'datasets/cloud/train_processed'
-    # prompt_folder_with_bbox(mask_folder)
+    mask_folder = 'detector_predictions/cloud'
+    prompt_folder_with_bbox(mask_folder)
     

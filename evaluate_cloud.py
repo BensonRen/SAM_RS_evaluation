@@ -213,7 +213,7 @@ def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None,
     The function that evaluates the pixel-wise IoU for each image in the file_list
     """
     save_df = pd.DataFrame(columns=['img_name','intersection','union'])
-    SAM_prompt_result_folder = 'SAM_output/cloud_bbox_prompt_save_{}'.format(mask_folder.replace('datasets/',''))
+    SAM_prompt_result_folder = 'SAM_output/cloud_bbox_prompt_save_{}'.format(mask_folder)
     if file_list is None:
         df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
         file_list = list(set(df['img_name'].values))    # use set to remove duplicates
@@ -284,11 +284,11 @@ if __name__ == '__main__':
 
     # parallel processing of the pixel IOU value
     # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
-    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
+    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
 
     # parallel processing of the object IOU value
-    # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
-    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
+    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
+    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
 
     # parallel processing of the pxiel IOU for BBox prompt
     # parallel_pixel_IOU_calc_from_bbox_prompt('datasets/cloud/train_processed')

@@ -86,8 +86,12 @@ def extract_full_folder(mask_folder, save_df_file,
     save_df = pd.DataFrame(columns=['img_name','prop_ind','bbox','centroid','area'])
     
     for file in tqdm(os.listdir(mask_folder)):
-        if '.tif' not in file and '.png' not in file and 'gt_patch' not in file:
-            continue
+        if 'detector_predictions' not in mask_folder:
+            if '.tif' not in file and '.png' not in file and 'gt_patch' not in file:
+                continue
+        else:
+            if '.csv' in file:
+                continue
         # Extract the 
         props = get_BBs_from_single_mask_img(file, mask_folder)
         for ind, prop in enumerate(props):
@@ -120,7 +124,9 @@ if __name__ == '__main__':
     # mask_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
     # mask_folder = 'detector_predictions/inria_dg'               # The inria_DG detector output mask
     # mask_folder = 'datasets/DG_road/train'                       # The GT for Inria Road
-    mask_folder = 'datasets/cloud/train_processed'                       # The GT for Cloud
+    mask_folder = 'detector_predictions/dg_road'                    # The detecotr output for DG road
+    # mask_folder = 'datasets/cloud/train_processed'                       # The GT for Cloud
+    # mask_folder = 'detector_predictions/cloud'                       # The detecotr output for Cloud
 
     extract_full_folder(mask_folder=mask_folder, 
                         save_df_file=os.path.join(mask_folder, 'bbox.csv'))

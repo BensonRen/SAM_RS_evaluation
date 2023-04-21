@@ -283,12 +283,12 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='random')
 
     # parallel processing of the pixel IOU value
-    # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
-    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
+    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
+    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
 
     # parallel processing of the object IOU value
-    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
-    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
+    # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
+    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
 
     # parallel processing of the pxiel IOU for BBox prompt
     # parallel_pixel_IOU_calc_from_bbox_prompt('datasets/DG_road/train')
