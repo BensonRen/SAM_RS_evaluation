@@ -258,7 +258,6 @@ def visualize_single_img_and_prompt():
     plt.axis('off')
     # plt.show()
     plt.savefig('investigation/exp_design_illustration/box_prompted_mask.png')
-  
 
 
 if __name__ == '__main__':
