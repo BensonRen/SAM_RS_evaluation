@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from skimage.segmentation import mark_boundaries
 from skimage.measure import label, regionprops
 from prompt_solar import show_box
+from multiprocessing import Pool
 
 
 from skimage.morphology import label
@@ -75,17 +76,18 @@ def draw_on_img(img_path, props, save_name):
     plt.imshow(img)
     plt.savefig(save_name)
 
-def extract_full_folder(mask_folder, save_df_file, 
+def extract_full_folder(mask_folder, file_list=None, save_df_file=None, 
                         img_limit = 9999999, size_limit=0):
     """
     Calls the get_BBs_from_single_mask for all masks within a folder and output a df file
     """
 
-    if 'cloud' in mask_folder:       # Skip the tiny ones in cloud dataset
+    if 'cloud' in mask_folder or 'detector_predictions/dg_road' in mask_folder:       # Skip the tiny ones in cloud dataset
         size_limit = 50
     save_df = pd.DataFrame(columns=['img_name','prop_ind','bbox','centroid','area'])
     
-    for file in tqdm(os.listdir(mask_folder)):
+    file_list = os.listdir(mask_folder) if file_list is None else file_list 
+    for file in tqdm(file_list):
         if 'detector_predictions' not in mask_folder:
             if '.tif' not in file and '.png' not in file and 'gt_patch' not in file:
                 continue
@@ -105,8 +107,25 @@ def extract_full_folder(mask_folder, save_df_file,
         img_limit -= 1
         if img_limit < 0:
             break
-    save_df.to_csv(save_df_file)
+    if save_df_file:
+        save_df.to_csv(save_df_file)
+    return save_df
 
+def parallel_extract_full_folder(mask_folder, save_df_file):
+    file_list = os.listdir(mask_folder) 
+    num_cpu = 50
+    try: 
+        pool = Pool(num_cpu)
+        args_list = []
+        for i in range(num_cpu):
+            args_list.append((mask_folder, file_list[i::num_cpu]))
+        output_dfs = pool.starmap(extract_full_folder, args_list)
+    finally:
+        pool.close()
+        pool.join()
+    combined_df = pd.concat(output_dfs)
+    combined_df.to_csv(save_df_file)
+    
 if __name__ == '__main__':
     # mask_folder = './'
     # mask_file = '11ska625740_31_05.tif'
@@ -122,11 +141,13 @@ if __name__ == '__main__':
     # mask_folder = 'datasets/solar_masks' # The GT solar pv masks
     # mask_folder = 'detector_predictions/solar_finetune_mask' # The detector output solar pv masks
     # mask_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
-    # mask_folder = 'detector_predictions/inria_dg'               # The inria_DG detector output mask
+    mask_folder = 'detector_predictions/inria_dg/masks'               # The inria_DG detector output mask
     # mask_folder = 'datasets/DG_road/train'                       # The GT for Inria Road
-    mask_folder = 'detector_predictions/dg_road'                    # The detecotr output for DG road
+    # mask_folder = 'detector_predictions/dg_road/masks'                    # The detecotr output for DG road
     # mask_folder = 'datasets/cloud/train_processed'                       # The GT for Cloud
-    # mask_folder = 'detector_predictions/cloud'                       # The detecotr output for Cloud
+    # mask_folder = 'detector_predictions/cloud/masks'                       # The detecotr output for Cloud
 
-    extract_full_folder(mask_folder=mask_folder, 
+    # extract_full_folder(mask_folder=mask_folder, 
+    #                     save_df_file=os.path.join(mask_folder, 'bbox.csv'))
+    parallel_extract_full_folder(mask_folder=mask_folder, 
                         save_df_file=os.path.join(mask_folder, 'bbox.csv'))

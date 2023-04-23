@@ -87,7 +87,7 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
     _, max_IOU_num_intersection, max_IOU_num_union = IoU_single_object_mask(mask_binary, output_max_IOU_mask)
     _, max_conf_num_intersection, max_conf_num_union = IoU_single_object_mask(mask_binary, output_max_conf_mask)
     save_df.loc[len(save_df)] = [gt_file, max_IOU_num_intersection, max_IOU_num_union,  
-                    max_conf_num_intersection, max_conf_num_union]
+                    max_conf_num_intersection, max_conf_num_union, np.sum(mask_binary > 0)]
     # print(save_df)
     # f = plt.figure(figsize=[15,5])
     # ax1 = plt.subplot(131)
@@ -160,7 +160,7 @@ def process_multiple_gt_mask(mode='center', file_list=None,
     if pixel_IOU_mode:
         save_df = pd.DataFrame(columns=['img_name', 'max_IOU_num_pixel_intersection', 
                     'max_IOU_num_pixel_union',  'max_conf_num_pixel_intersection',
-                      'max_conf_num_pixel_union'])
+                      'max_conf_num_pixel_union','cur_object_size'])
     else:
         save_df = pd.DataFrame(columns=['img_name','prompt_ind', 
                                     'SAM_conf_0','SAM_conf_1','SAM_conf_2',
@@ -212,8 +212,8 @@ def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None,
     """
     The function that evaluates the pixel-wise IoU for each image in the file_list
     """
-    save_df = pd.DataFrame(columns=['img_name','intersection','union'])
-    SAM_prompt_result_folder = 'inria_DG_bbox_prompt_save_{}'.format(mask_folder)
+    save_df = pd.DataFrame(columns=['img_name','intersection','union', 'cur_object'])
+    SAM_prompt_result_folder = 'SAM_output/inria_DG_bbox_prompt_save_{}'.format(mask_folder.replace('datasets/',''))
     if file_list is None:
         df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
         file_list = list(set(df['img_name'].values))    # use set to remove duplicates
@@ -235,11 +235,12 @@ def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None,
             mask_union += mask  # Sum to make union
         mask_union = mask_union > 0     # Threshold to make binary
         _, intersection, union = IoU_single_object_mask(gt_mask, mask_union)
-        save_df.loc[len(save_df)] = [file, intersection, union]
+        save_df.loc[len(save_df)] = [file, intersection, union, np.sum(gt_mask > 0)]
     return save_df
 
 def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
-                                             bbox_csv_name='bbox.csv',):
+                                             bbox_csv_name='bbox.csv',
+                                             gt_mask_folder=None):
     """
     Calls the "get_pixel_IOU_from_bbox_prompt_from_bboxcsv" in parallel manner
     """
@@ -250,7 +251,7 @@ def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
         pool = Pool(num_cpu)
         args_list = []
         for i in range(num_cpu):
-            args_list.append((mask_folder, file_list[i::num_cpu]))
+            args_list.append((mask_folder, file_list[i::num_cpu],gt_mask_folder))
         output_dfs = pool.starmap(get_pixel_IOU_from_bbox_prompt_from_bboxcsv, args_list)
     finally:
         pool.close()
@@ -291,5 +292,12 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
 
     # parallel processing of the pxiel IOU for BBox prompt
-    # parallel_pixel_IOU_calc_from_bbox_prompt('datasets/Combined_Inria_DeepGlobe_650/patches')
-    parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/inria_dg')
+    parallel_pixel_IOU_calc_from_bbox_prompt('datasets/Combined_Inria_DeepGlobe_650/patches',
+                                             gt_mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches')
+    # parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/inria_dg')
+
+    # For the detector prediction
+    # mask_folder = 'detector_predictions/inria_dg/masks'
+    # parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
+    #                                          gt_mask_folder=mask_folder.replace('masks', 'gt'))
+

@@ -124,7 +124,7 @@ def prompt_folder_with_bbox(mask_folder, bbox_df_file='bbox.csv',
                             img_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches',
                             max_img=999999):
     # Make the saving folder
-    save_mask_path = 'point_prompt_pickles/inria_DG_bbox_prompt_save_{}'.format(mask_folder)
+    save_mask_path = 'inria_DG_bbox_prompt_save_{}'.format(mask_folder)
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
 
@@ -191,6 +191,7 @@ if __name__ == '__main__':
 
     # Prompting with bbox
     # mask_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches'         # The ground truth boxes
-    mask_folder = 'detector_predictions/inria_dg'           # The detecotr output boxes
-    prompt_folder_with_bbox(mask_folder)
+    mask_folder = 'detector_predictions/inria_dg/masks'           # The detecotr output boxes
+    # prompt_folder_with_bbox(mask_folder, )
+    prompt_folder_with_bbox(mask_folder, img_folder=mask_folder.replace('masks', 'cropped_imgs'))
     

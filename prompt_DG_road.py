@@ -77,7 +77,7 @@ def prompt_folder_with_point(mode, max_img=999999):
 
     # Load the points to be prompted
     print('...loading pickel of prompt points')
-    with open('DG_road_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    with open('point_prompt_pickles/DG_road_{}_prompt.pickle'.format(mode), 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     
     # Load predictor
@@ -87,7 +87,7 @@ def prompt_folder_with_point(mode, max_img=999999):
     # Loop over all the keys inside the prompt_point_dict
     for img_name in tqdm(prompt_point_dict.keys()):
         # Get image path
-        img_path = os.path.join('DG_road/train', img_name.replace('mask.png','sat.jpg'))
+        img_path = os.path.join('datasets/DG_road/train', img_name.replace('mask.png','sat.jpg'))
         # Make sure this image exist
         if not os.path.exists(img_path):
             print('Warning!!! {} does not exist, bypassing now'.format(img_path))
@@ -121,7 +121,7 @@ def prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,):
     # np.save(save_name, masks)
 
 def prompt_folder_with_bbox(mask_folder, bbox_df_file='bbox.csv',
-                            img_folder = 'DG_road/train',
+                            img_folder = 'datasets/DG_road/train',
                             max_img=999999):
     # Make the saving folder
     save_mask_path = 'DG_road_bbox_prompt_save_{}'.format(mask_folder)
@@ -190,6 +190,8 @@ if __name__ == '__main__':
     # prompt_folder_with_point(mode='center')
 
     # Prompting with bbox
-    mask_folder = 'DG_road/train'
-    prompt_folder_with_bbox(mask_folder)
+    # mask_folder = 'DG_road/train'
+    mask_folder = 'detector_predictions/dg_road/masks'
+    # prompt_folder_with_bbox(mask_folder)
+    prompt_folder_with_bbox(mask_folder, img_folder=mask_folder.replace('masks', 'cropped_imgs'))
     

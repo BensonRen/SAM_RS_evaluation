@@ -219,7 +219,7 @@ def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None,
         file_list = list(set(df['img_name'].values))    # use set to remove duplicates
     for file in tqdm(file_list):
         cur_mask_list = glob.glob(os.path.join(SAM_prompt_result_folder, 
-                                               '{}*'.format(file.replace('.png',''))))
+                                               '{}*'.format(file.split('.'[0]))))
         gt_mask_path = os.path.join(gt_folder, file)
         if os.path.exists(gt_mask_path):
             gt_mask = cv2.imread(gt_mask_path)[:, :, 0] > 0
@@ -239,18 +239,21 @@ def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None,
     return save_df
 
 def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
-                                             bbox_csv_name='bbox.csv',):
+                                             bbox_csv_name='bbox.csv',
+                                             gt_mask_folder=None):
     """
     Calls the "get_pixel_IOU_from_bbox_prompt_from_bboxcsv" in parallel manner
     """
     df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
     file_list = list(set(df['img_name'].values))    # use set to remove duplicates
+    print('peeking the top of file list:')
+    print(file_list[:10])
     num_cpu = 40
     try: 
         pool = Pool(num_cpu)
         args_list = []
         for i in range(num_cpu):
-            args_list.append((mask_folder, file_list[i::num_cpu]))
+            args_list.append((mask_folder, file_list[i::num_cpu], gt_mask_folder))
         output_dfs = pool.starmap(get_pixel_IOU_from_bbox_prompt_from_bboxcsv, args_list)
     finally:
         pool.close()
@@ -283,8 +286,8 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='random')
 
     # parallel processing of the pixel IOU value
-    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
-    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
+    # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
+    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
 
     # parallel processing of the object IOU value
     # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
@@ -293,4 +296,7 @@ if __name__ == '__main__':
     # parallel processing of the pxiel IOU for BBox prompt
     # parallel_pixel_IOU_calc_from_bbox_prompt('datasets/DG_road/train')
 
-    # parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/')
+    # parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/dg_road/masks')
+    mask_folder = 'detector_predictions/dg_road/masks'
+    parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
+                                             gt_mask_folder=mask_folder.replace('masks', 'gt'))

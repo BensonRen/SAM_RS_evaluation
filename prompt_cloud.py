@@ -191,6 +191,7 @@ if __name__ == '__main__':
 
     # Prompting with bbox
     # mask_folder = 'datasets/cloud/train_processed'
-    mask_folder = 'detector_predictions/cloud'
-    prompt_folder_with_bbox(mask_folder)
+    mask_folder = 'detector_predictions/cloud/masks'
+    # prompt_folder_with_bbox(mask_folder)
+    prompt_folder_with_bbox(mask_folder, img_folder=mask_folder.replace('masks', 'cropped_imgs'))
     
