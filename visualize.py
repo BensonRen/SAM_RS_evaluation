@@ -8,6 +8,7 @@ import glob
 from tqdm import tqdm
 from multiprocessing import Pool
 import shutil
+from prompt_inria_DG import process_str_bbox_into_bbox, show_box
 
 def show_mask(mask, ax, random_color=False):
     if random_color:
@@ -287,13 +288,198 @@ def visualize_cloud(max_img=1000):
                             savefolder='sample_imgs/cloud_center'
                             )
 
+
+def visualize_single_mask_bbox(SAM_pred_folder,
+                          SAM_pred_mask_name,
+                          gt_mask_folder,
+                          img_folder,
+                          detecotr_output_folder,
+                          bbox,
+                          save_prefix,
+                          savefolder='sample_imgs',
+                          move_img=False,
+                          ):
+    """
+    Visualize a 1x3 
+    """
+    # Get the information needed
+    img_prefix = SAM_pred_mask_name.split('_prompt')[0]
+    prompt_ind = int(SAM_pred_mask_name.split('prompt_ind_')[1].split('_')[0])
+    # bbox_df = pd.read_csv(bbox_csv, index_col=0)
+    # input_bbox = process_str_bbox_into_bbox(row['bbox'])    # Adding permutation to make this aligned
+        
+
+    # Get original img
+    img_re = os.path.join(img_folder, 
+                          img_prefix.replace('mask','').replace('gt_patch','img_patch')+'*')
+    if 'DG' in SAM_pred_folder or 'dg' in SAM_pred_folder:
+        img_re += '.jpg'
+    img_name = glob.glob(img_re)[0]
+    img = cv2.imread(img_name)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # Get the current mask
+    cur_mask_name = os.path.join(SAM_pred_folder, SAM_pred_mask_name)
+    # print(cur_mask_name)
+    cur_mask_name = glob.glob(cur_mask_name + '*')[0]
+    cur_mask = cv2.imread(cur_mask_name)
+
+    # Get gt_mask
+    gt_mask_re = os.path.join(gt_mask_folder, img_prefix)
+    if 'DG' in SAM_pred_folder or 'dg' in SAM_pred_folder:
+        gt_mask_re += '.png'
+    # print(gt_mask_re)
+    gt_mask_name = glob.glob(gt_mask_re + '*')
+    
+    if len(gt_mask_name) == 0:
+        gt_mask = np.zeros_like(img)[:, :, 0]
+    else:
+        gt_mask_name = gt_mask_name[0]
+    # For solar, which does not necessary have all masks (empy if no object)
+    if os.path.exists(gt_mask_name):
+        gt_mask = cv2.imread(gt_mask_name)
+    else:
+        gt_mask = np.zeros_like(img)
+        
+    if np.max(gt_mask) == 1:
+        gt_mask *= 255
+    
+    # Get the detecotr prediction
+    detecoter_pred_file = os.path.join(detecotr_output_folder, img_prefix)
+    # print(gt_mask_re)
+    det_mask_name = glob.glob(detecoter_pred_file + '*')[0]
+    det_mask = cv2.imread(det_mask_name)[:, :, 0]
+
+    
+    if move_img:
+        gt_dest = os.path.join(savefolder, os.path.basename(gt_mask_name))
+        img_dest = os.path.join(savefolder, os.path.basename(img_name))
+        if not os.path.exists(gt_dest):
+            shutil.copyfile(gt_mask_name, gt_dest)
+        if not os.path.exists(img_dest):
+            shutil.copyfile(img_name, img_dest)
+        # for i in range(3):
+        f = plt.figure()
+        cur_mask_bw = get_bw_from_1d_mask(cur_mask[:, :, 0], img)
+        plt.imshow(cur_mask_bw)
+        plt.axis('off')
+        plt.savefig(os.path.join(savefolder, 
+                                    os.path.basename(cur_mask_name)))
+        plt.close('all')
+        # return
+    # Plotting function
+    f = plt.figure(figsize=[15,10])
+    ax = plt.subplot(221)
+    plt.imshow(img)
+    plt.axis('off')
+    ax = plt.subplot(222)
+    plt.imshow(gt_mask)
+    plt.axis('off')
+    ax = plt.subplot(224)
+    plt.imshow(get_bw_from_1d_mask(det_mask, img))
+    show_box(bbox, ax)
+    plt.axis('off')
+    ax = plt.subplot(223)
+    # print(np.shape(cur_mask))
+    cur_mask_bw = get_bw_from_1d_mask(cur_mask[:, :, 0], img)
+    plt.imshow(cur_mask_bw)
+    show_box(bbox, ax)
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig(os.path.join(savefolder, 
+                             save_prefix + SAM_pred_mask_name.split('.')[0] + '.png'),
+                transparent=True, dpi=300)
+    plt.close('all')
+
+
+def visualize_bbox_inria_dg(max_img=1000, num_cpu=50, move_img=False):
+     # First lets read the center prompt result.csv
+    df = pd.read_csv('detector_predictions/inria_dg/masks/bbox.csv', 
+                     index_col=0)
+    
+    try: 
+        pool = Pool(num_cpu)
+        args_list = []
+        for i in tqdm(range(min(len(df), max_img))):
+            SAM_pred_mask_name = '{}_prompt_ind_{}'.format(df['img_name'].values[i].split('.')[0],
+                                                       df['prop_ind'].values[i])
+            bbox = process_str_bbox_into_bbox(df['bbox'].values[i])
+            
+            args_list.append(('SAM_output/inria_DG_bbox_prompt_save_detector_predictions/inria_dg/masks/',
+                          SAM_pred_mask_name,
+                          'detector_predictions/inria_dg/gt',
+                          'detector_predictions/inria_dg/cropped_imgs',
+                          'detector_predictions/inria_dg/masks',
+                          bbox,
+                          'test',
+                          'sample_imgs/inria_bbox/',
+                          move_img,))
+        pool.starmap(visualize_single_mask_bbox, args_list)
+    finally:
+        pool.close()
+        pool.join()
+
+def visualize_bbox_dg_road(max_img=1000, num_cpu=50, move_img=False):
+     # First lets read the center prompt result.csv
+    df = pd.read_csv('detector_predictions/dg_road/masks/bbox.csv', 
+                     index_col=0)
+    
+    try: 
+        pool = Pool(num_cpu)
+        args_list = []
+        for i in tqdm(range(min(len(df), max_img))):
+            SAM_pred_mask_name = '{}_prompt_ind_{}'.format(df['img_name'].values[i].split('.')[0],
+                                                       df['prop_ind'].values[i])
+            bbox = process_str_bbox_into_bbox(df['bbox'].values[i])
+            
+            args_list.append(('SAM_output/DG_road_bbox_prompt_save_detector_predictions/dg_road/masks/',
+                          SAM_pred_mask_name,
+                          'detector_predictions/dg_road/gt',
+                          'detector_predictions/dg_road/cropped_imgs',
+                          'detector_predictions/dg_road/masks',
+                          bbox,
+                          'test',
+                          'sample_imgs/dg_road_bbox/',
+                          move_img,))
+        pool.starmap(visualize_single_mask_bbox, args_list)
+    finally:
+        pool.close()
+        pool.join()
+
+def visualize_bbox_solar(max_img=1000, num_cpu=50, move_img=False):
+     # First lets read the center prompt result.csv
+    df = pd.read_csv('detector_predictions/solar_finetune_mask/bbox.csv', 
+                     index_col=0)
+    
+    try: 
+        pool = Pool(num_cpu)
+        args_list = []
+        for i in tqdm(range(min(len(df), max_img))):
+            SAM_pred_mask_name = '{}_prompt_ind_{}'.format(df['img_name'].values[i].split('.')[0],
+                                                       df['prop_ind'].values[i])
+            bbox = process_str_bbox_into_bbox(df['bbox'].values[i])
+            
+            args_list.append(('SAM_output/solar_pv_bbox_prompt_save_solar_finetune_mask',
+                          SAM_pred_mask_name,
+                          'detector_predictions/solar/gt',
+                          'datasets/solar-pv',
+                          'detector_predictions/solar/masks',
+                          bbox,
+                          'test',
+                          'sample_imgs/solar_bbox/',
+                          move_img,))
+        pool.starmap(visualize_single_mask_bbox, args_list)
+    finally:
+        pool.close()
+        pool.join()
+
 if __name__ == '__main__':
     # visualize_solar()
     # visualize_inria_dg()
     # visualize_dg_road()
     # visualize_cloud()
     # visualize_inria_dg(move_img=True)
-    visualize_dg_road(move_img=True)
+    # visualize_dg_road(move_img=True)
 
     # visualize_single_mask(SAM_pred_folder='SAM_output/solar_pv_center_prompt_save',
     #                       SAM_pred_mask_name='11ska625755_23_13_prompt_ind_0__0.968635618686676_0.9178075790405273_0.7066956758499146.npy',
@@ -303,5 +489,21 @@ if __name__ == '__main__':
     #                        scatter_npy='scatter_list/solar_pv_scatter_list.npy',
     #                       oracle_iou=0.5,
     #                       pixel_size=200,
+    #                       )
+
+
+    # visualize_bbox_inria_dg()
+    # visualize_bbox_inria_dg(move_img=True)
+    # visualize_bbox_dg_road(move_img=True)
+    visualize_bbox_solar(move_img=True)
+    #  visualize_single_mask_bbox(SAM_pred_folder='SAM_output/inria_DG_bbox_prompt_save_detector_predictions/inria_dg/masks/',
+    #                       SAM_pred_mask_name='vienna6_y997x3989_prompt_ind_1_size_2045.png',
+    #                       gt_mask_folder='detector_predictions/inria_dg/gt',
+    #                       img_folder='detector_predictions/inria_dg/cropped_imgs',
+    #                       detecotr_output_folder='detector_predictions/inria_dg/masks',
+    #                       bbox=np.array([0, 17, 22, 85]),
+    #                       save_prefix='test',
+    #                       savefolder='sample_imgs/inria_bbox/',
+    #                       move_img=False,
     #                       )
     
