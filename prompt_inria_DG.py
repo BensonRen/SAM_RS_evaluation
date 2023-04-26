@@ -70,6 +70,36 @@ def prompt_with_point(predictor, input_point, save_mask_path, save_mask_prefix,
                                 save_mask_prefix + '_{}_{}_{}.npy'.format(scores[0],scores[1],scores[2]))
         np.save(save_name, masks)
 
+
+def prompt_with_multiple_points(predictor, input_points, save_mask_path, 
+                                save_mask_prefix, png_mode=True): # Pickle mode is not saving space
+    """
+    Prompt the predictor with img and point pair and save the mask in the save_mask_name
+    :param predictor: The SAM loaded predictor, which has already been set_image before
+    :param img_path: The location of the image
+    :param input_point: A single point of prompting
+    :param save_mask_prefix: The prefix to save the mask
+    :param save_mask_path: The position to save the mask
+    :param input_label: This is for the signifying whether it is foreground or background
+    """
+    input_labels = np.ones(len(input_points))
+    # Make inference using SAM
+    masks, scores, logits = predictor.predict(
+            point_coords=input_points,
+            point_labels=input_labels,
+            multimask_output=True,)
+    
+    if png_mode:
+        save_name = os.path.join(save_mask_path, 
+                                save_mask_prefix + '_{}_{}_{}.png'.format(scores[0],scores[1],scores[2]))
+        cv2.imwrite(save_name, np.swapaxes(masks, 0, 2)*255)
+        return 
+    else:
+        # make the save path
+        save_name = os.path.join(save_mask_path, 
+                                save_mask_prefix + '_{}_{}_{}.npy'.format(scores[0],scores[1],scores[2]))
+        np.save(save_name, masks)
+
 def prompt_folder_with_point(mode, max_img=999999):
     save_mask_path = 'inria_DG_{}_prompt_save'.format(mode)
     if not os.path.isdir(save_mask_path):
@@ -108,7 +138,50 @@ def prompt_folder_with_point(mode, max_img=999999):
             max_img -= 1
             if max_img < 0:
                 break
+
+
+def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999):
+    save_mask_path = 'inria_DG_{}_prompt_save_numpoint_{}'.format(mode, num_point_prompt)
+    if not os.path.isdir(save_mask_path):
+        os.makedirs(save_mask_path)
+
+    # Load the points to be prompted
+    print('...loading pickel of prompt points')
+    with open('point_prompt_pickles/inria_DG_{}_prompt.pickle'.format(mode), 'rb') as handle:
+        prompt_point_dict = pickle.load(handle)
     
+    # Load predictor
+    print('...loading predictor')
+    predictor = load_predictor()
+    print(predictor)
+
+    # Loop over all the keys inside the prompt_point_dict
+    for img_name in tqdm(prompt_point_dict.keys()):
+        # Get image path
+        img_path = os.path.join('datasets/Combined_Inria_DeepGlobe_650/patches', img_name.replace('.png','.jpg'))
+        # Make sure this image exist
+        if not os.path.exists(img_path):
+            print('Warning!!! {} does not exist, bypassing now'.format(img_path))
+            continue
+        # Load the image and transform color
+        image = cv2.imread(img_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Why do we need to cvt color?
+        # Set the predictor
+        predictor.set_image(image)
+
+        # Get the input points (they are all in the form of a list)
+        for ind, input_point in enumerate(prompt_point_dict[img_name]):
+            save_mask_prefix = img_name.split('.')[0] + '_prompt_ind_{}_'.format(ind)
+            # Take the random num_point_prompt points (they are random so just the first)
+            input_point_np = input_point[:num_point_prompt, :]
+            prompt_with_multiple_points(predictor, input_point_np, save_mask_path, save_mask_prefix)
+        
+        if max_img is not None:
+            max_img -= 1
+            if max_img < 0:
+                break
+    
+
 def prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,):
     masks, _, _ = predictor.predict(
             box=input_bbox[None, :],   # This is not sure
@@ -189,9 +262,15 @@ if __name__ == '__main__':
     # prompt_folder_with_point(mode='random')
     # prompt_folder_with_point(mode='center')
 
+    # Multiple points
+    for num_point_prompt in [5, 10, 20]:
+    # for num_point_prompt in [30, 40, 50]:
+        prompt_folder_with_multiple_points(mode = 'multi_point_rand_50', 
+                                        num_point_prompt=num_point_prompt)
+
     # Prompting with bbox
     # mask_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches'         # The ground truth boxes
-    mask_folder = 'detector_predictions/inria_dg/masks'           # The detecotr output boxes
+    # mask_folder = 'detector_predictions/inria_dg/masks'           # The detecotr output boxes
     # prompt_folder_with_bbox(mask_folder, )
-    prompt_folder_with_bbox(mask_folder, img_folder=mask_folder.replace('masks', 'cropped_imgs'))
+    # prompt_folder_with_bbox(mask_folder, img_folder=mask_folder.replace('masks', 'cropped_imgs'))
     

@@ -22,6 +22,24 @@ def k_th_occurence(k, list_of_binary):
             return i
     return 1/0  # Stop here, this is error if algo comes to this point
 
+def k_list_th_occurence(k_list, list_of_binary):
+    # Original implementation (Take 3:32 for 8 instances)
+    occurence = 0
+    output_list = np.zeros(len(k_list))
+    cur_found = 0
+    for i in range(len(list_of_binary)):
+        if list_of_binary[i] == 1:
+            occurence += 1
+            if occurence in k_list:
+                output_list[cur_found] = i
+                cur_found += 1
+        else:
+            continue
+        if cur_found == len(k_list):
+            return output_list
+    print('k_list', k_list)
+    return 1/0  # Stop here, this is error if algo comes to this point
+
 def get_kth_for_all(num_to_find_list, k_list, conected_comp_label_array, error_code=-99999):
     """
     The O(l*n) version of the original naive O(l*n*numLabels) algorithm
@@ -169,6 +187,61 @@ def get_list_of_random_inside_points(folder, img_name, output_dict,
         assert indicator_mask[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == 1, 'in closest setting, x,y are possibly flipped'
     return output_dict
 
+def get_list_of_multiple_random_inside_points(folder, img_name, output_dict, num_points,
+                                     size_limit=0):
+    if 'cloud' in folder:
+        size_limit = 50
+    size_limit = max(size_limit, num_points)
+    # Read the image mask
+    mask = cv2.imread(os.path.join(folder, img_name))
+    # Find the connected component
+    output = cv2.connectedComponentsWithStats(
+	        mask[:, :, 0], 4)
+    # Get them into structured outputs
+    (numLabels, labels, stats, centroids) = output
+    if numLabels == 1:
+        return
+    
+    if np.max(mask > 1):    # This is to make the mask binary
+        mask_binary = mask[:,:,0] > 122
+    else:
+        mask_binary = mask[:, :, 0]
+    mask_mul_labels = mask_binary * (labels + 1) # Label + 1 is to make sure they all start from 1
+
+    # get the coordinate arrays
+    l, w = np.shape(labels) # Get the size of the current image
+    l_index = np.broadcast_to(np.arange(l), (w, l)).T
+    w_index = np.broadcast_to(np.arange(w), (l, w))
+    l_index_flat = np.reshape(l_index, [-1, 1])
+    w_index_flat = np.reshape(w_index, [-1, 1])
+
+    
+    # Loop over the number of labels and check whether this is a background or foregroup
+    for i in range(numLabels):
+        num_pixel = np.sum(mask_mul_labels == (i+1))
+        # print(num_pixel)
+        # First identify background
+        if num_pixel <= size_limit:
+            continue
+        # Directly choose an random point
+        indicator_mask = mask_mul_labels == (i + 1)
+        list_of_component = np.reshape(indicator_mask, [-1, 1])
+        random_index = np.random.permutation(num_pixel-1) + 1
+        random_index = random_index[:num_points]
+        # random_index = np.random.randint(1, num_pixel, size=num_points)
+        mid_point_indexs = k_list_th_occurence(random_index, list_of_component).astype('int')
+        if img_name not in output_dict:
+            output_dict[img_name] = []
+        # print(np.shape(mid_point_indexs))
+        # print(np.shape(w_index_flat[mid_point_indexs]))
+
+        point_stack = np.concatenate([w_index_flat[mid_point_indexs], l_index_flat[mid_point_indexs]],
+                                     axis=1)
+        output_dict[img_name].append(point_stack)
+        # output_dict[img_name].append((int(w_index_flat[mid_point_index]), int(l_index_flat[mid_point_index])))
+        # assert indicator_mask[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == 1, 'in closest setting, x,y are possibly flipped'
+    return output_dict
+
 def get_prompt_for_list_for_center(folder, file_list, output_dict):
     for file in file_list:
         get_list_of_centers(folder=folder,img_name=file, 
@@ -180,7 +253,13 @@ def get_prompt_for_list_for_random(folder, file_list, output_dict):
         get_list_of_random_inside_points(folder=folder,img_name=file, 
                         output_dict=output_dict)
     return output_dict
-    
+
+def get_prompt_for_list_for_random_with_k_points(folder, file_list, output_dict, k):
+    for file in file_list:
+        get_list_of_multiple_random_inside_points(folder=folder,img_name=file, 
+                        output_dict=output_dict, num_points=k)
+    return output_dict
+
 if __name__ == '__main__':
     num_count_dict = {'center': 0, 'midpoint':0, 'set_of_non_concave_panel_imgs':set()}
     output_dict = {}
@@ -190,8 +269,9 @@ if __name__ == '__main__':
     # dataset = 'Solar'
     # dataset = 'cloud'
 
-    mode = 'center'
+    # mode = 'center'
     # mode = 'random'
+    # mode = 'multi_point_rand_5'
 
     # Run one test: Solar
     # get_list_of_centers(folder='solar_masks',img_name='11ska655800_20_10.tif', 
@@ -203,10 +283,10 @@ if __name__ == '__main__':
 
 
     # # Run all
-    # folder = 'solar_masks'                                # Solar-pv
-    # folder = 'Combined_Inria_DeepGlobe_650/patches'       # Inria-DG
-    folder = 'cloud/train_processed'                      # Cloud
-    # folder = 'DG_road/train'                              # DG_road
+    folder = 'datasets/solar_masks'                                # Solar-pv
+    # folder = 'datasets/Combined_Inria_DeepGlobe_650/patches'       # Inria-DG
+    # folder = 'datasets/cloud/train_processed'                      # Cloud
+    # folder = 'datasets/DG_road/train'                              # DG_road
     # for file in os.listdir(folder):
     # k, k_limit = 0, 100
     k, k_limit = 0, 9999999999
@@ -214,33 +294,62 @@ if __name__ == '__main__':
     ######################################
     # Use some parallel computing method #
     ######################################
-    # all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for inria_DG
-    all_files = [file for file in os.listdir(folder) if 'gt' in file] # .png is for cloud
-    # all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for Road_DG
+    all_files = [file for file in os.listdir(folder) if '.tif' in file]     # For Solar
+    # all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for inria_DG, Road
+    # all_files = [file for file in os.listdir(folder) if 'gt' in file] # .png is for cloud
+
+    # Testing purpose
+    # j = 5
+    # print(all_files[j])
+    # get_list_of_multiple_random_inside_points(folder, all_files[j], output_dict, 30,
+    #                                  size_limit=0)
+    # for key in output_dict.keys():
+    #     points = output_dict[key]
+    #     print(len(points))
+    #     for i in range(len(points)):
+    #         print(np.shape(points[i]))
+    # # print(output_dict)
+    # quit()
+
+
     num_cpu = 50
+    k = 50
+    mode = 'multi_point_rand_{}'.format(k)
     try: 
         pool = Pool(num_cpu)
         args_list = []
-        for i in range(num_cpu):
-            args_list.append((folder, all_files[i::num_cpu], output_dict))
+        if 'multi_point_rand_' in mode:
+            # k = int(mode.split('_')[-1])
+            for i in range(num_cpu):
+                args_list.append((folder, all_files[i::num_cpu], output_dict, k))
+        else:
+            for i in range(num_cpu):
+                args_list.append((folder, all_files[i::num_cpu], output_dict))
         # print((args_list))
         # print(len(args_list))
         if mode == 'center':
             output_dict = pool.starmap(get_prompt_for_list_for_center, args_list)
-        else:
+        elif mode == 'random':
             output_dict = pool.starmap(get_prompt_for_list_for_random, args_list)
+        elif 'multi_point_rand' in mode:
+            output_dict = pool.starmap(get_prompt_for_list_for_random_with_k_points, args_list)
     finally:
         pool.close()
         pool.join()
     output_dict = dict(ChainMap(*output_dict))
+
+    with open('solar_pv_{}_prompt.pickle'.format(mode), 'wb') as handle:
+                pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     # with open('inria_DG_{}_prompt.pickle'.format(mode), 'wb') as handle:
     #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
     # with open('DG_road_{}_prompt.pickle'.format(mode), 'wb') as handle:
     #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('cloud_{}_prompt.pickle'.format(mode), 'wb') as handle:
-                pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open('cloud_{}_prompt.pickle'.format(mode), 'wb') as handle:
+    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     quit()
 
     

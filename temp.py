@@ -3,6 +3,7 @@ import os
 import torch
 import matplotlib.pyplot as plt
 import cv2
+import pickle
 
 import sys
 sys.path.append("..")
@@ -20,8 +21,8 @@ def show_mask(mask, ax, random_color=False):
 def show_points(coords, labels, ax, marker_size=375):
     pos_points = coords[labels==1]
     neg_points = coords[labels==0]
-    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
-    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
+    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, )
+    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size)
 
 def show_box(box, ax):
     x0, y0 = box[0], box[1]
@@ -259,6 +260,35 @@ def visualize_single_img_and_prompt():
     # plt.show()
     plt.savefig('investigation/exp_design_illustration/box_prompted_mask.png')
 
+def check_multi_prompt_point_extraction_by_plotting():
+    mode = 'multi_point_rand_50'
+    with open('point_prompt_pickles/DG_road_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    # with open('point_prompt_pickles/inria_DG_{}_prompt.pickle'.format(mode), 'rb') as handle:
+        prompt_point_dict = pickle.load(handle)
+    # folder = 'datasets/Combined_Inria_DeepGlobe_650/patches'
+    folder = 'datasets/DG_road/train'
+    # print(prompt_point_dict)
+    for key in list(prompt_point_dict.keys()):
+
+        # print(type(prompt_point_dict[key]))
+        # print(len(prompt_point_dict[key]))
+        # for i in range(len(prompt_point_dict[key])):
+        #     print(np.shape(prompt_point_dict[key][i]))
+        # print(prompt_point_dict[key])
+        # quit()
+        
+        # Read the image
+        img = cv2.imread(os.path.join(folder, key.replace('mask','sat').replace('png','jpg')))
+        f = plt.figure()
+        plt.imshow(img)
+        coords = prompt_point_dict[key][0]
+        print(np.shape(coords))
+        labels = np.ones(len(coords)).astype('int')
+        show_points(coords, labels, plt.gca(), marker_size=30)
+        plt.savefig('investigation/multi_point_prompt/test.png')
+        # for point in prompt_point_dict[key]:
+            
+        quit()
 
 if __name__ == '__main__':
     # Testing different prompt shapes
@@ -275,5 +305,7 @@ if __name__ == '__main__':
     
     #visualize_SAM_logits_etc()
 
-    visualize_single_img_and_prompt()
+    # visualize_single_img_and_prompt()
+
+    check_multi_prompt_point_extraction_by_plotting()
 
