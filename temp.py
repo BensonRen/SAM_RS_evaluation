@@ -204,8 +204,10 @@ def evaluate_with_mask(input_mask, image_name, gt_mask_name, save_name=''):
     # plt.savefig(os.path.join('/home/sr365/SAM/investigation/logit_distribution', 
     #                             os.path.basename(image_name).replace('.','_mask_original_tot')))
 
-def visualize_single_img_and_prompt():
-    image = cv2.imread('solar-pv/11ska625740_31_05.tif')
+def visualize_single_img_and_prompt_with_SAM():
+    # image = cv2.imread('solar-pv/11ska625740_31_05.tif')
+    image = cv2.imread('datasets/crop/imgs/8904536.jpeg')
+    
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     sam_checkpoint = "sam_vit_h_4b8939.pth"
@@ -260,6 +262,31 @@ def visualize_single_img_and_prompt():
     # plt.show()
     plt.savefig('investigation/exp_design_illustration/box_prompted_mask.png')
 
+
+def visualize_single_img_and_its_point_prompt():
+    # image = cv2.imread('solar-pv/11ska625740_31_05.tif')
+    img_file = 'datasets/crop/imgs/8904536.jpeg'
+    image = cv2.imread(img_file)
+    mask = cv2.imread(img_file.replace('jpeg','png').replace('imgs','masks_filled'))
+    prompt_file = 'point_prompt_pickles/crop_center_prompt.pickle'
+    # Read the prompt
+    with open(prompt_file, 'rb') as handle:
+        prompt_point_dict = pickle.load(handle)
+    # print(prompt_point_dict)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    cur_point = prompt_point_dict[os.path.basename(img_file).replace('jpeg','png')]
+    f = plt.figure(figsize=[10,5])
+    ax = plt.subplot(121)
+    plt.imshow(image)
+    cur_point = np.stack(cur_point, axis=0)
+    show_points(cur_point, np.ones(len(cur_point)), ax, marker_size=30)
+    plt.axis('off')
+    ax = plt.subplot(122)
+    plt.imshow(mask)
+    show_points(cur_point, np.ones(len(cur_point)), ax, marker_size=30)
+    plt.axis('off')
+    plt.savefig('investigation/crop_sample/test.png')
+
 def check_multi_prompt_point_extraction_by_plotting():
     mode = 'multi_point_rand_50'
     with open('point_prompt_pickles/DG_road_{}_prompt.pickle'.format(mode), 'rb') as handle:
@@ -291,6 +318,7 @@ def check_multi_prompt_point_extraction_by_plotting():
         quit()
 
 if __name__ == '__main__':
+    visualize_single_img_and_its_point_prompt()
     # Testing different prompt shapes
     # mask_prop_dict = {'choice':'kernel', 
     #                     'mag':10,

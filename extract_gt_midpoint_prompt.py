@@ -283,10 +283,11 @@ if __name__ == '__main__':
 
 
     # # Run all
-    folder = 'datasets/solar_masks'                                # Solar-pv
+    # folder = 'datasets/solar_masks'                                # Solar-pv
     # folder = 'datasets/Combined_Inria_DeepGlobe_650/patches'       # Inria-DG
     # folder = 'datasets/cloud/train_processed'                      # Cloud
     # folder = 'datasets/DG_road/train'                              # DG_road
+    folder = 'datasets/crop/masks_filled'                              # Crop
     # for file in os.listdir(folder):
     # k, k_limit = 0, 100
     k, k_limit = 0, 9999999999
@@ -294,25 +295,13 @@ if __name__ == '__main__':
     ######################################
     # Use some parallel computing method #
     ######################################
-    all_files = [file for file in os.listdir(folder) if '.tif' in file]     # For Solar
-    # all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for inria_DG, Road
+    # all_files = [file for file in os.listdir(folder) if '.tif' in file]     # For Solar
+    all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for inria_DG, Road, Crop
     # all_files = [file for file in os.listdir(folder) if 'gt' in file] # .png is for cloud
 
-    # Testing purpose
-    # j = 5
-    # print(all_files[j])
-    # get_list_of_multiple_random_inside_points(folder, all_files[j], output_dict, 30,
-    #                                  size_limit=0)
-    # for key in output_dict.keys():
-    #     points = output_dict[key]
-    #     print(len(points))
-    #     for i in range(len(points)):
-    #         print(np.shape(points[i]))
-    # # print(output_dict)
-    # quit()
-
-
-    num_cpu = 50
+    num_cpu = 10
+    # mode = 'center'
+    # mode = 'random'
     k = 50
     mode = 'multi_point_rand_{}'.format(k)
     try: 
@@ -338,8 +327,8 @@ if __name__ == '__main__':
         pool.join()
     output_dict = dict(ChainMap(*output_dict))
 
-    with open('solar_pv_{}_prompt.pickle'.format(mode), 'wb') as handle:
-                pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open('solar_pv_{}_prompt.pickle'.format(mode), 'wb') as handle:
+    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     # with open('inria_DG_{}_prompt.pickle'.format(mode), 'wb') as handle:
     #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -349,6 +338,9 @@ if __name__ == '__main__':
 
     # with open('cloud_{}_prompt.pickle'.format(mode), 'wb') as handle:
     #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    with open('crop_{}_prompt.pickle'.format(mode), 'wb') as handle:
+                pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     quit()
 

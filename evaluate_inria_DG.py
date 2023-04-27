@@ -28,11 +28,15 @@ def get_IoU_for_3masks(gt_mask, pred_3masks):
     return IoU_list
 
 def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df, mode,
-    gt_folder='Combined_Inria_DeepGlobe_650/patches'):
+    gt_folder='datasets/Combined_Inria_DeepGlobe_650/patches'):
     """
     The function to get the pixel IOU related information for a single gt_file
     """
-    prompt_mask_folder = 'inria_DG_{}_prompt_save'.format(mode)
+    if 'multi_point' in mode:
+        prompt_mask_folder = 'SAM_output/inria_DG_multi_point_rand_50_prompt_save_numpoint_{}'.format(mode.split('_')[-1])
+    else:
+        prompt_mask_folder = 'SAM_output/inria_DG_{}_prompt_save'.format(mode)
+    # prompt_mask_folder = 'inria_DG_{}_prompt_save'.format(mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -54,11 +58,12 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
         num_pixel = np.sum(mask_mul_labels == (i+1))
         # print(num_pixel)
         # First identify background
-        if num_pixel == 0:
+        if 'multi_point' in mode and num_pixel <= 50:
             continue
         matched = False
         for prompt_ind, prompt_point in enumerate(prompt_list):
-            # Find the match of current prompt index
+            if len(prompt_point) == 50:  # This is multi-point experiment
+                prompt_point = prompt_point[0, :]
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
             matched = True
@@ -107,10 +112,14 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
     return
 
 def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mode,
-            gt_folder='Combined_Inria_DeepGlobe_650/patches'):
+            gt_folder='datasets/Combined_Inria_DeepGlobe_650/patches'):
     if gt_file not in prompt_point_dict:    # This is an empty image with no buildings
         return
-    prompt_mask_folder = 'inria_DG_{}_prompt_save'.format(mode)
+    if 'multi_point' in mode:
+        prompt_mask_folder = 'SAM_output/inria_DG_multi_point_rand_50_prompt_save_numpoint_{}'.format(mode.split('_')[-1])
+    else:
+        prompt_mask_folder = 'SAM_output/inria_DG_{}_prompt_save'.format(mode)
+    # prompt_mask_folder = 'inria_DG_{}_prompt_save'.format(mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -131,9 +140,12 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
         # First identify background
         if num_pixel == 0:
             continue
+        if 'multi_point' in mode and num_pixel <= 50:
+            continue
         matched = False
         for prompt_ind, prompt_point in enumerate(prompt_list):
-            # Find the match of current prompt index
+            if len(prompt_point) == 50:  # This is multi-point experiment
+                prompt_point = prompt_point[0, :]
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
             matched = True
@@ -155,7 +167,7 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
 
 def process_multiple_gt_mask(mode='center', file_list=None,
                              pixel_IOU_mode=False):
-    gt_folder='Combined_Inria_DeepGlobe_650/patches'
+    gt_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
     # Setup the save_df
     if pixel_IOU_mode:
         save_df = pd.DataFrame(columns=['img_name', 'max_IOU_num_pixel_intersection', 
@@ -184,7 +196,7 @@ def process_multiple_gt_mask(mode='center', file_list=None,
     return save_df
 
 def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
-    folder = 'Combined_Inria_DeepGlobe_650/patches'
+    folder = 'datasets/Combined_Inria_DeepGlobe_650/patches'
     prompt_point_dict = get_prompt_dict(mode=mode)
     all_files = [file for file in os.listdir(folder) if '.png' in file and file in prompt_point_dict] # .png is for inria_DG
     num_cpu = 50
@@ -262,7 +274,11 @@ def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
 
 
 def get_prompt_dict(mode):
-    with open('inria_DG_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    if 'multi_point' in mode:
+        prompt_file = 'point_prompt_pickles/inria_DG_multi_point_rand_50_prompt.pickle'
+    else:
+        prompt_file = 'point_prompt_pickles/inria_DG_{}_prompt.pickle'.format(mode)
+    with open(prompt_file, 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     return prompt_point_dict
 
@@ -291,9 +307,16 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
     # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
 
+
+    # multiple points
+    for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True)
+        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False)
+
+
     # parallel processing of the pxiel IOU for BBox prompt
-    parallel_pixel_IOU_calc_from_bbox_prompt('datasets/Combined_Inria_DeepGlobe_650/patches',
-                                             gt_mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches')
+    # parallel_pixel_IOU_calc_from_bbox_prompt('datasets/Combined_Inria_DeepGlobe_650/patches',
+    #                                          gt_mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches')
     # parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/inria_dg')
 
     # For the detector prediction

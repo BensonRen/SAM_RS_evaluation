@@ -28,11 +28,15 @@ def get_IoU_for_3masks(gt_mask, pred_3masks):
     return IoU_list
 
 def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df, mode,
-    gt_folder='solar_masks'):
+    gt_folder='datasets/solar_masks'):
     """
     The function to get the pixel IOU related information for a single gt_file
     """
-    prompt_mask_folder = 'solar_pv_{}_prompt_save'.format(mode)
+    if 'multi_point' in mode:
+        prompt_mask_folder = 'SAM_output/solar_pv_multi_point_rand_50_prompt_save_numpoint_{}'.format(mode.split('_')[-1])
+    else:
+        prompt_mask_folder = 'SAM_output/solar_pv_{}_prompt_save'.format(mode)
+    # prompt_mask_folder = 'solar_pv_{}_prompt_save'.format(mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -56,18 +60,23 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
         # First identify background
         if num_pixel == 0:
             continue
+        if 'multi_point' in mode and num_pixel <= 50:
+            continue
         matched = False
         for prompt_ind, prompt_point in enumerate(prompt_list):
-            # Find the match of current prompt index
+            if len(prompt_point) == 50:  # This is multi-point experiment
+                prompt_point = prompt_point[0, :]
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
             matched = True
-            mask_file_reg_exp = '{}_prompt_ind_{}_*.npy'.format(gt_file.replace('.tif',''), prompt_ind)
+            mask_file_reg_exp = '{}_prompt_ind_{}_*'.format(gt_file.replace('.tif',''), prompt_ind)
             # print('reg_exp=', mask_file_reg_exp)
             mask_file_list = glob.glob(os.path.join(prompt_mask_folder, mask_file_reg_exp))
-            assert len(mask_file_list) == 1, 'Your mask file list length is not equal to 1: \n {}'.format(mask_file_list)
+            assert len(mask_file_list) == 1, 'Your mask file list length is not equal to 1: \n {} \n reg_exp: {}'.format(mask_file_list, mask_file_reg_exp)
             mask_file = mask_file_list[0]
-            cur_mask = np.load(mask_file) > 0
+            # cur_mask = np.load(mask_file)     # The original npy mode
+            cur_mask = cv2.imread(mask_file)
+            cur_mask = np.swapaxes(cur_mask, 0, 2) > 0
             # print(np.shape(cur_mask))
             _, _, conf_list = read_info_from_prmopt_mask_file(mask_file)
             cur_gt_mask = labels == i
@@ -90,7 +99,7 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
 
 def process_multiple_gt_mask(mode='center', file_list=None,
                              pixel_IOU_mode=False):
-    gt_folder='solar_masks'
+    gt_folder='datasets/solar_masks'
     # Setup the save_df
     if pixel_IOU_mode:
         save_df = pd.DataFrame(columns=['img_name', 'max_IOU_num_pixel_intersection', 
@@ -103,7 +112,7 @@ def process_multiple_gt_mask(mode='center', file_list=None,
     
     prompt_point_dict = get_prompt_dict(mode=mode)
     if file_list is None:
-        all_files = [file for file in os.listdir(gt_folder) if '.tif' in file and '_33' not in file] # .tif is for solar_pv
+        all_files = [file for file in os.listdir(gt_folder) if '.png' in file and '_33' not in file] # .tif is for solar_pv
     else:
         all_files = file_list
     for file in tqdm(all_files):
@@ -119,7 +128,7 @@ def process_multiple_gt_mask(mode='center', file_list=None,
     return save_df
 
 def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
-    folder='solar_masks'
+    folder='datasets/solar_masks'
     prompt_point_dict = get_prompt_dict(mode=mode)
     all_files = [file for file in os.listdir(folder) if '.tif' in file and file in prompt_point_dict and '_33' not in file] # .png is for inria_DG
     num_cpu = 40
@@ -141,8 +150,11 @@ def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
         combined_df.to_csv('solar_pv_{}_object_wise_IOU.csv'.format(mode))
 
 def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mode,
-            gt_folder='solar_masks'):
-    solar_prompt_mask_folder = 'solar_pv_{}_prompt_save'.format(mode)
+            gt_folder='datasets/solar_masks'):
+    if 'multi_point' in mode:
+        prompt_mask_folder = 'SAM_output/solar_pv_multi_point_rand_50_prompt_save_numpoint_{}'.format(mode.split('_')[-1])
+    else:
+        prompt_mask_folder = 'SAM_output/solar_pv_{}_prompt_save'.format(mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -159,18 +171,23 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
         # First identify background
         if num_pixel == 0:
             continue
+        if 'multi_point' in mode and num_pixel <= 50:
+            continue
         matched = False
         for prompt_ind, prompt_point in enumerate(prompt_list):
-            # Find the match of current prompt index
+            if len(prompt_point) == 50:  # This is multi-point experiment
+                prompt_point = prompt_point[0, :]
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
             matched = True
-            mask_file_reg_exp = '{}_prompt_ind_{}_*.npy'.format(gt_file.replace('.tif',''), prompt_ind)
+            mask_file_reg_exp = '{}_prompt_ind_{}_*'.format(gt_file.replace('.tif',''), prompt_ind)
             # print('reg_exp=', mask_file_reg_exp)
-            mask_file_list = glob.glob(os.path.join(solar_prompt_mask_folder, mask_file_reg_exp))
+            mask_file_list = glob.glob(os.path.join(prompt_mask_folder, mask_file_reg_exp))
             assert len(mask_file_list) == 1, 'Your mask file list length is not equal to 1: \n {}'.format(mask_file_list)
             mask_file = mask_file_list[0]
-            cur_mask = np.load(mask_file)
+            # cur_mask = np.load(mask_file)     # The original npy mode
+            cur_mask = cv2.imread(mask_file)
+            cur_mask = np.swapaxes(cur_mask, 0, 2) > 0
             _, _, conf_list = read_info_from_prmopt_mask_file(mask_file)
             cur_gt_mask = labels == i
             IoU_list = get_IoU_for_3masks(cur_gt_mask, cur_mask)
@@ -179,14 +196,14 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
         assert matched, 'There is patch in your gt_mask that does not match to your prompt point, stop!'
 
 def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None, 
-                                                gt_folder='solar_masks',
+                                                gt_folder='datasets/solar_masks',
                                                 bbox_csv_name='bbox.csv',
                                                 img_size=(224, 224)):
     """
     The function that evaluates the pixel-wise IoU for each image in the file_list
     """
     save_df = pd.DataFrame(columns=['img_name','intersection','union'])
-    SAM_prompt_result_folder = 'solar_pv_bbox_prompt_save_{}'.format(mask_folder)
+    SAM_prompt_result_folder = 'datasets/solar_pv_bbox_prompt_save_{}'.format(mask_folder)
     if file_list is None:
         df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
         file_list = list(set(df['img_name'].values))    # use set to remove duplicates
@@ -217,7 +234,7 @@ def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
     """
     df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
     file_list = list(set(df['img_name'].values))    # use set to remove duplicates
-    num_cpu = 40
+    num_cpu = 10
     try: 
         pool = Pool(num_cpu)
         args_list = []
@@ -272,7 +289,12 @@ def overlay_all_masks(img_name, mask_file, conf_list, input_point,
         plt.show()
 
 def get_prompt_dict(mode):
-    with open('solar_pv_{}_prompt_dict.pickle'.format(mode), 'rb') as handle:
+
+    if 'multi_point' in mode:
+        prompt_file = 'point_prompt_pickles/solar_pv_multi_point_rand_50_prompt.pickle'
+    else:
+        prompt_file = 'point_prompt_pickles/solar_pv_{}_prompt.pickle'.format(mode)
+    with open(prompt_file, 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     return prompt_point_dict
 
@@ -280,7 +302,7 @@ def read_info_from_prmopt_mask_file(prompt_mask_file):
     mask_name = os.path.basename(prompt_mask_file)
     img_name = mask_name.split('_prompt')[0] + '.tif'
     mask_ind = int(mask_name.split('_prompt_ind_')[1].split('_')[0])
-    conf_list = [float(i) for i in mask_name.replace('.npy','').split('_')[-3:]]
+    conf_list = [float(i) for i in mask_name.replace('.png','').replace('.npy','').split('_')[-3:]]
     return img_name, mask_ind, conf_list
 
 if __name__ == '__main__':
@@ -292,7 +314,12 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
     # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
 
+    # multiple points
+    for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True)
+        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False)
+
     # Pixel IOU for bbox prompt
     # parallel_pixel_IOU_calc_from_bbox_prompt('solar_masks')
-    parallel_pixel_IOU_calc_from_bbox_prompt('solar_finetune_mask')
+    # parallel_pixel_IOU_calc_from_bbox_prompt('solar_finetune_mask')
     # get_pixel_IOU_from_bbox_prompt_from_bboxcsv()     # THis is serial operation, slow

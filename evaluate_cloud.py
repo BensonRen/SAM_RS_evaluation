@@ -32,7 +32,10 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
     """
     The function to get the pixel IOU related information for a single gt_file
     """
-    prompt_mask_folder = 'SAM_output/cloud_{}_prompt_save'.format(mode)
+    if 'multi_point' in mode:
+        prompt_mask_folder = 'SAM_output/cloud_multi_point_rand_50_prompt_save_numpoint_{}'.format(mode.split('_')[-1])
+    else:
+        prompt_mask_folder = 'SAM_output/cloud_{}_prompt_save'.format(mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -56,8 +59,12 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
         # First identify background
         if num_pixel <= size_limit:
             continue
+        if 'multi_point' in mode and num_pixel <= 50:
+            continue
         matched = False
         for prompt_ind, prompt_point in enumerate(prompt_list):
+            if len(prompt_point) == 50:  # This is multi-point experiment
+                prompt_point = prompt_point[0, :]
             # Find the match of current prompt index
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
@@ -110,7 +117,10 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
             gt_folder='datasets/cloud/train_processed', size_limit=50):
     if gt_file not in prompt_point_dict:    # This is an empty image with no buildings
         return
-    prompt_mask_folder = 'SAM_output/cloud_{}_prompt_save'.format(mode)
+    if 'multi_point' in mode:
+        prompt_mask_folder = 'SAM_output/cloud_multi_point_rand_50_prompt_save_numpoint_{}'.format(mode.split('_')[-1])
+    else:
+        prompt_mask_folder = 'SAM_output/cloud_{}_prompt_save'.format(mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -131,8 +141,12 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
         # First identify background
         if num_pixel <= size_limit:
             continue
+        if 'multi_point' in mode and num_pixel <= 50:
+            continue
         matched = False
         for prompt_ind, prompt_point in enumerate(prompt_list):
+            if len(prompt_point) == 50:  # This is multi-point experiment
+                prompt_point = prompt_point[0, :]
             # Find the match of current prompt index
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
@@ -264,7 +278,11 @@ def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
 
 
 def get_prompt_dict(mode):
-    with open('point_prompt_pickles/cloud_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    if 'multi_point' in mode:
+        prompt_file = 'point_prompt_pickles/cloud_multi_point_rand_50_prompt.pickle'
+    else:
+        prompt_file = 'point_prompt_pickles/cloud_{}_prompt.pickle'.format(mode)
+    with open(prompt_file, 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     return prompt_point_dict
 
@@ -293,8 +311,14 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
     # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
 
+    # multiple points
+    for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True)
+        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False)
+
+
     # parallel processing of the pxiel IOU for BBox prompt
     # parallel_pixel_IOU_calc_from_bbox_prompt('datasets/cloud/train_processed')
-    mask_folder = 'detector_predictions/cloud/masks'
-    parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
-                                             gt_mask_folder=mask_folder.replace('masks', 'gt'))
+    # mask_folder = 'detector_predictions/cloud/masks'
+    # parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
+    #                                          gt_mask_folder=mask_folder.replace('masks', 'gt'))

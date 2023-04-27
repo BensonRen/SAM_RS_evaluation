@@ -141,12 +141,12 @@ if __name__ == '__main__':
     # mask_folder = 'datasets/solar_masks' # The GT solar pv masks
     # mask_folder = 'detector_predictions/solar_finetune_mask' # The detector output solar pv masks
     # mask_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches' # The GT inria_DG masks
-    mask_folder = 'detector_predictions/inria_dg/masks'               # The inria_DG detector output mask
+    # mask_folder = 'detector_predictions/inria_dg/masks'               # The inria_DG detector output mask
     # mask_folder = 'datasets/DG_road/train'                       # The GT for Inria Road
     # mask_folder = 'detector_predictions/dg_road/masks'                    # The detecotr output for DG road
     # mask_folder = 'datasets/cloud/train_processed'                       # The GT for Cloud
     # mask_folder = 'detector_predictions/cloud/masks'                       # The detecotr output for Cloud
-
+    mask_folder = 'datasets/crop/masks_filled'
     # extract_full_folder(mask_folder=mask_folder, 
     #                     save_df_file=os.path.join(mask_folder, 'bbox.csv'))
     parallel_extract_full_folder(mask_folder=mask_folder, 
