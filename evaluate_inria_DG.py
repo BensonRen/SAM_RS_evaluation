@@ -258,7 +258,7 @@ def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
     """
     df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
     file_list = list(set(df['img_name'].values))    # use set to remove duplicates
-    num_cpu = 40
+    num_cpu = 50
     try: 
         pool = Pool(num_cpu)
         args_list = []
@@ -309,8 +309,9 @@ if __name__ == '__main__':
 
 
     # multiple points
-    for num_point_prompt in [5, 10, 20, 30, 40, 50]:
-        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True)
+    # for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+    for num_point_prompt in [2, 3]:
+        # parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True)
         parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False)
 
 

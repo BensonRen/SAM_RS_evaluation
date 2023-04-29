@@ -131,7 +131,7 @@ def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
     folder='datasets/solar_masks'
     prompt_point_dict = get_prompt_dict(mode=mode)
     all_files = [file for file in os.listdir(folder) if '.tif' in file and file in prompt_point_dict and '_33' not in file] # .png is for inria_DG
-    num_cpu = 40
+    num_cpu = 30
     try: 
         pool = Pool(num_cpu)
         args_list = []
@@ -315,7 +315,8 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
 
     # multiple points
-    for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+    # for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+    for num_point_prompt in [2,3]:
         parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True)
         parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False)
 

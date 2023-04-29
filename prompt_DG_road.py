@@ -266,7 +266,8 @@ if __name__ == '__main__':
 
     # Multiple points
     # for num_point_prompt in [5, 10, 20]:
-    for num_point_prompt in [30, 40, 50]:
+    # for num_point_prompt in [30, 40, 50]:
+    for num_point_prompt in [2,3]:
         prompt_folder_with_multiple_points(mode = 'multi_point_rand_50', 
                                         num_point_prompt=num_point_prompt)
         

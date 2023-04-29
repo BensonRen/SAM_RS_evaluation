@@ -312,7 +312,8 @@ if __name__ == '__main__':
     # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
 
     # multiple points
-    for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+    # for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+    for num_point_prompt in [2,3]:
         parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True)
         parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False)
 
