@@ -233,13 +233,16 @@ def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None,
     gt_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
     save_df = pd.DataFrame(columns=['img_name','intersection','union'])
     SAM_prompt_result_folder = 'SAM_output/DG_land_{}_bbox_prompt_save_{}'.format(land_type, 
-                                                                                  mask_folder.replace('datasets/',''))
+                                                                                  mask_folder)
     if file_list is None:
         df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
         file_list = list(set(df['img_name'].values))    # use set to remove duplicates
     for file in tqdm(file_list):
-        cur_mask_list = glob.glob(os.path.join(SAM_prompt_result_folder, 
-                                               '{}*'.format(file.split('.'[0]))))
+        reg_exp = os.path.join(SAM_prompt_result_folder, 
+                                               '{}*'.format(file.split('.')[0]))
+        # print(reg_exp)
+        # quit()
+        cur_mask_list = glob.glob(reg_exp)
         gt_mask_path = os.path.join(gt_folder, file)
         if os.path.exists(gt_mask_path):
             gt_mask = cv2.imread(gt_mask_path)[:, :, 0] > 0
@@ -302,21 +305,21 @@ def read_info_from_prmopt_mask_file(prompt_mask_file):
 
 
 if __name__ == '__main__':
-    land_type ='agriculture_land' #'water'#  'urban_land'   #   #
+    land_type = 'agriculture_land'   # 'water' #'urban_land'  # #
 
     # parallel processing of the pixel IOU value
-    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True, land_type=land_type)
-    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True, land_type=land_type)
+    # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True, land_type=land_type)
+    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True, land_type=land_type)
 
-    # parallel processing of the object IOU value
-    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False, land_type=land_type)
-    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False, land_type=land_type)
+    # # parallel processing of the object IOU value
+    # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False, land_type=land_type)
+    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False, land_type=land_type)
 
-    # multiple points
-    # for num_point_prompt in [5, 10, 20, 30, 40, 50]:
-    for num_point_prompt in [2,3,5,10]:
-        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True, land_type=land_type)
-        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False, land_type=land_type)
+    # # multiple points
+    # # for num_point_prompt in [5, 10, 20, 30, 40, 50]:
+    # for num_point_prompt in [2,3,5,10]:
+    #     parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True, land_type=land_type)
+    #     parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False, land_type=land_type)
 
     # parallel processing of the pxiel IOU for BBox prompt
     parallel_pixel_IOU_calc_from_bbox_prompt('datasets/DG_land/diff_train_masks/{}'.format(land_type),
