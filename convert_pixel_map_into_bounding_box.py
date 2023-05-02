@@ -146,8 +146,25 @@ if __name__ == '__main__':
     # mask_folder = 'detector_predictions/dg_road/masks'                    # The detecotr output for DG road
     # mask_folder = 'datasets/cloud/train_processed'                       # The GT for Cloud
     # mask_folder = 'detector_predictions/cloud/masks'                       # The detecotr output for Cloud
-    mask_folder = 'datasets/crop/masks_filled'
+    # mask_folder = 'datasets/crop/masks_filled'                        # The GT of crop
+    # mask_folder = 'detector_predictions/crop_delineation_filled'      # The detector output for crop
+    
+    #####
+    # The DG_land dataset
+    #####
+    DG_land_type_list = ['urban_land', 'water' ,'agriculture_land' ]
+    for DG_land_type in DG_land_type_list:
+        # DG_land_type = 'urban_land' # 'water' #  'agriculture_land' 
+        dataset = 'DG_land_{}'.format(DG_land_type)
+        mask_folder = 'datasets/DG_land/diff_train_masks/{}'.format(DG_land_type) 
+
+        parallel_extract_full_folder(mask_folder=mask_folder, 
+                            save_df_file=os.path.join(mask_folder, 'bbox.csv'))
+
+    # Sequential version
     # extract_full_folder(mask_folder=mask_folder, 
     #                     save_df_file=os.path.join(mask_folder, 'bbox.csv'))
-    parallel_extract_full_folder(mask_folder=mask_folder, 
-                        save_df_file=os.path.join(mask_folder, 'bbox.csv'))
+    
+    # Parallel version
+    # parallel_extract_full_folder(mask_folder=mask_folder, 
+    #                     save_df_file=os.path.join(mask_folder, 'bbox.csv'))

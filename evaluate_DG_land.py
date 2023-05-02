@@ -27,16 +27,16 @@ def get_IoU_for_3masks(gt_mask, pred_3masks):
         IoU_list[i], _ , _ = IoU_single_object_mask(gt_mask, pred_3masks[i, :, :])
     return IoU_list
 
-def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df, mode,
-    gt_folder='datasets/crop/masks_filled',size_limit=0):
+def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df, mode,land_type):
+    gt_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
     """
     The function to get the pixel IOU related information for a single gt_file
     """
     if 'multi_point' in mode:
-        prompt_mask_folder = 'SAM_output/crop_multi_point_rand_50_prompt_save_numpoint_{}'.format(mode.split('_')[-1])
+        prompt_mask_folder = 'SAM_output/DG_land_{}_multi_point_rand_50_prompt_save_numpoint_{}'.format(land_type,
+                                                                                                        mode.split('_')[-1])
     else:
-        prompt_mask_folder = 'SAM_output/crop_{}_prompt_save'.format(mode)
-    # prompt_mask_folder = 'crop_{}_prompt_save'.format(mode)
+        prompt_mask_folder = 'SAM_output/DG_land_{}_{}_prompt_save'.format(land_type, mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -58,7 +58,7 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
         num_pixel = np.sum(mask_mul_labels == (i+1))
         # print(num_pixel)
         # First identify background
-        if num_pixel <= size_limit:
+        if num_pixel == 0:
             continue
         if 'multi_point' in mode and num_pixel <= 50:
             continue
@@ -66,6 +66,7 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
         for prompt_ind, prompt_point in enumerate(prompt_list):
             if len(prompt_point) == 50:  # This is multi-point experiment
                 prompt_point = prompt_point[0, :]
+            # Find the match of current prompt index
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
             matched = True
@@ -94,7 +95,7 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
     _, max_IOU_num_intersection, max_IOU_num_union = IoU_single_object_mask(mask_binary, output_max_IOU_mask)
     _, max_conf_num_intersection, max_conf_num_union = IoU_single_object_mask(mask_binary, output_max_conf_mask)
     save_df.loc[len(save_df)] = [gt_file, max_IOU_num_intersection, max_IOU_num_union,  
-                    max_conf_num_intersection, max_conf_num_union, np.sum(mask_binary > 0)]
+                    max_conf_num_intersection, max_conf_num_union]
     # print(save_df)
     # f = plt.figure(figsize=[15,5])
     # ax1 = plt.subplot(131)
@@ -104,7 +105,7 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
     # ax2.imshow(gt_mask*255)
     # plt.axis('off')
     # ax2 = plt.subplot(133)
-    # original_img = cv2.imread(os.path.join(gt_folder, gt_file).replace('.png','.jpeg'))
+    # original_img = cv2.imread(os.path.join(gt_folder, gt_file).replace('.png','.jpg'))
     # original_img = cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB)  # Change back to RBG
     # ax2.imshow(original_img)
     # plt.axis('off')
@@ -113,15 +114,15 @@ def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df,
     # quit()
     return
 
-def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mode,
-            gt_folder='datasets/crop/masks_filled'):
+def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mode, land_type):
+    gt_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
     if gt_file not in prompt_point_dict:    # This is an empty image with no buildings
         return
     if 'multi_point' in mode:
-        prompt_mask_folder = 'SAM_output/crop_multi_point_rand_50_prompt_save_numpoint_{}'.format(mode.split('_')[-1])
+        prompt_mask_folder = 'SAM_output/DG_land_{}_multi_point_rand_50_prompt_save_numpoint_{}'.format(land_type,
+                                                                                                        mode.split('_')[-1])
     else:
-        prompt_mask_folder = 'SAM_output/crop_{}_prompt_save'.format(mode)
-    # prompt_mask_folder = 'crop_{}_prompt_save'.format(mode)
+        prompt_mask_folder = 'SAM_output/DG_land_{}_{}_prompt_save'.format(land_type, mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
     prompt_list = prompt_point_dict[gt_file]
@@ -148,6 +149,7 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
         for prompt_ind, prompt_point in enumerate(prompt_list):
             if len(prompt_point) == 50:  # This is multi-point experiment
                 prompt_point = prompt_point[0, :]
+            # Find the match of current prompt index
             if labels[prompt_point[1], prompt_point[0]] != i:
                 continue
             matched = True
@@ -168,45 +170,47 @@ def process_single_point_prompt_gt_mask(gt_file, prompt_point_dict, save_df, mod
         assert matched, 'There is patch in your gt_mask that does not match to your prompt point, stop!'
 
 def process_multiple_gt_mask(mode='center', file_list=None,
-                             pixel_IOU_mode=False):
-    gt_folder='datasets/crop/masks_filled'
+                             pixel_IOU_mode=False, land_type=None):
+    gt_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
     # Setup the save_df
     if pixel_IOU_mode:
         save_df = pd.DataFrame(columns=['img_name', 'max_IOU_num_pixel_intersection', 
                     'max_IOU_num_pixel_union',  'max_conf_num_pixel_intersection',
-                      'max_conf_num_pixel_union','cur_object_size'])
+                      'max_conf_num_pixel_union'])
     else:
         save_df = pd.DataFrame(columns=['img_name','prompt_ind', 
                                     'SAM_conf_0','SAM_conf_1','SAM_conf_2',
                                     'IoU_0','IoU_1','IoU_2', 'cur_object_size'])
     
-    prompt_point_dict = get_prompt_dict(mode=mode)
+    prompt_point_dict = get_prompt_dict(mode=mode, land_type=land_type)
     if file_list is None:
-        all_files = [file for file in os.listdir(gt_folder) if '.png' in file and file in prompt_point_dict] # .png is for crop
+        all_files = [file for file in os.listdir(gt_folder) if '.png' in file and file in prompt_point_dict] # .png is for inria_DG
     else:
         all_files = file_list
     for file in tqdm(all_files):
         if pixel_IOU_mode:
-            get_pixel_IOU_from_gt_mask_point_prompt(file, prompt_point_dict, save_df, mode=mode)
+            get_pixel_IOU_from_gt_mask_point_prompt(file, prompt_point_dict, save_df, mode=mode,
+                                                    land_type=land_type)
         else:
-            process_single_point_prompt_gt_mask(file, prompt_point_dict, save_df, mode=mode)
+            process_single_point_prompt_gt_mask(file, prompt_point_dict, save_df, mode=mode,
+                                                land_type=land_type)
     if file_list is None: # Then this is not parallel mode
         if pixel_IOU_mode:
-            save_df.to_csv('crop_{}_pixel_wise_IOU.csv'.format(mode))
+            save_df.to_csv('DG_land_{}_{}_pixel_wise_IOU.csv'.format(land_type, mode))
         else:
-            save_df.to_csv('crop_{}_object_wise_IOU.csv'.format(mode))
+            save_df.to_csv('DG_land_{}_{}_object_wise_IOU.csv'.format(land_type, mode))
     return save_df
 
-def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
-    folder = 'datasets/crop/masks_filled'
-    prompt_point_dict = get_prompt_dict(mode=mode)
-    all_files = [file for file in os.listdir(folder) if '.png' in file and file in prompt_point_dict] # .png is for crop
+def parallel_multiple_gt_mask(mode, land_type, pixel_IOU_mode=False, ):
+    folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
+    prompt_point_dict = get_prompt_dict(mode=mode, land_type=land_type)
+    all_files = [file for file in os.listdir(folder) if '.png' in file and file in prompt_point_dict] # .png is for inria_DG
     num_cpu = 50
     try: 
         pool = Pool(num_cpu)
         args_list = []
         for i in range(num_cpu):
-            args_list.append((mode, all_files[i::num_cpu], pixel_IOU_mode))
+            args_list.append((mode, all_files[i::num_cpu], pixel_IOU_mode, land_type))
         # print((args_list))
         # print(len(args_list))
         output_dfs = pool.starmap(process_multiple_gt_mask, args_list)
@@ -215,27 +219,28 @@ def parallel_multiple_gt_mask(mode, pixel_IOU_mode=False):
         pool.join()
     combined_df = pd.concat(output_dfs)
     if pixel_IOU_mode:
-        combined_df.to_csv('crop_{}_pixel_wise_IOU.csv'.format(mode))
+        combined_df.to_csv('DG_land_{}_{}_pixel_wise_IOU.csv'.format(land_type, mode))
     else:
-        combined_df.to_csv('crop_{}_object_wise_IOU.csv'.format(mode))
+        combined_df.to_csv('DG_land_{}_{}_object_wise_IOU.csv'.format(land_type, mode))
 
 def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None, 
-                                                gt_folder='datasets/crop/masks_filled',
+                                                land_type=None,
                                                 bbox_csv_name='bbox.csv',
                                                 img_size=(512, 512)):
     """
     The function that evaluates the pixel-wise IoU for each image in the file_list
     """
-    save_df = pd.DataFrame(columns=['img_name','intersection','union', 'cur_object'])
-    SAM_prompt_result_folder = 'SAM_output/crop_bbox_prompt_save_{}'.format(mask_folder)
-    print(SAM_prompt_result_folder)
+    gt_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
+    save_df = pd.DataFrame(columns=['img_name','intersection','union'])
+    SAM_prompt_result_folder = 'SAM_output/DG_land_{}_bbox_prompt_save_{}'.format(land_type, 
+                                                                                  mask_folder.replace('datasets/',''))
     if file_list is None:
         df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
-        file_list = list(set(df['img_name'].values.astype('str')))    # use set to remove duplicates
+        file_list = list(set(df['img_name'].values))    # use set to remove duplicates
     for file in tqdm(file_list):
         cur_mask_list = glob.glob(os.path.join(SAM_prompt_result_folder, 
-                                               '{}*'.format(file.replace('.png',''))))
-        gt_mask_path = os.path.join(gt_folder, str(file))
+                                               '{}*'.format(file.split('.'[0]))))
+        gt_mask_path = os.path.join(gt_folder, file)
         if os.path.exists(gt_mask_path):
             gt_mask = cv2.imread(gt_mask_path)[:, :, 0] > 0
             gt_mask = gt_mask.astype('uint8')
@@ -250,37 +255,40 @@ def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, file_list=None,
             mask_union += mask  # Sum to make union
         mask_union = mask_union > 0     # Threshold to make binary
         _, intersection, union = IoU_single_object_mask(gt_mask, mask_union)
-        save_df.loc[len(save_df)] = [file, intersection, union, np.sum(gt_mask > 0)]
+        save_df.loc[len(save_df)] = [file, intersection, union]
     return save_df
 
-def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
+def parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder, land_type,
                                              bbox_csv_name='bbox.csv',
-                                             gt_mask_folder=None):
+                                             gt_mask_folder=None, ):
     """
     Calls the "get_pixel_IOU_from_bbox_prompt_from_bboxcsv" in parallel manner
     """
     df = pd.read_csv(os.path.join(mask_folder, bbox_csv_name), index_col=0)     # Read the bbox csv
     file_list = list(set(df['img_name'].values))    # use set to remove duplicates
+    print('peeking the top of file list:')
+    print(file_list[:10])
     num_cpu = 50
     try: 
         pool = Pool(num_cpu)
         args_list = []
         for i in range(num_cpu):
-            args_list.append((mask_folder, file_list[i::num_cpu],gt_mask_folder))
+            args_list.append((mask_folder, file_list[i::num_cpu], land_type))
         output_dfs = pool.starmap(get_pixel_IOU_from_bbox_prompt_from_bboxcsv, args_list)
     finally:
         pool.close()
         pool.join()
     combined_df = pd.concat(output_dfs)
-    combined_df.to_csv('crop_{}_pixel_wise_IOU_{}.csv'.format('bbox_prompt', 
+    combined_df.to_csv('DG_land_{}_{}_pixel_wise_IOU_{}.csv'.format(land_type,
+                                                                    'bbox_prompt', 
                                                                    mask_folder.replace('/','')))
 
 
-def get_prompt_dict(mode):
+def get_prompt_dict(mode, land_type):
     if 'multi_point' in mode:
-        prompt_file = 'point_prompt_pickles/crop_multi_point_rand_50_prompt.pickle'
+        prompt_file = 'point_prompt_pickles/DG_land_{}_multi_point_rand_50_prompt.pickle'.format(land_type)
     else:
-        prompt_file = 'point_prompt_pickles/crop_{}_prompt.pickle'.format(mode)
+        prompt_file = 'point_prompt_pickles/DG_land_{}_{}_prompt.pickle'.format(land_type, mode)
     with open(prompt_file, 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     return prompt_point_dict
@@ -294,37 +302,27 @@ def read_info_from_prmopt_mask_file(prompt_mask_file):
 
 
 if __name__ == '__main__':
-    # Serial processing
-    # process_multiple_gt_mask(mode='center')
-    # process_multiple_gt_mask(mode='random')
-
-    # parallel processing
-    # parallel_multiple_gt_mask(mode='center')
-    # parallel_multiple_gt_mask(mode='random')
+    land_type ='agriculture_land' #'water'#  'urban_land'   #   #
 
     # parallel processing of the pixel IOU value
-    #parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True)
-    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True)
+    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=True, land_type=land_type)
+    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=True, land_type=land_type)
 
     # parallel processing of the object IOU value
-    # parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False)
-    # parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False)
-
+    parallel_multiple_gt_mask(mode='center', pixel_IOU_mode=False, land_type=land_type)
+    parallel_multiple_gt_mask(mode='random', pixel_IOU_mode=False, land_type=land_type)
 
     # multiple points
     # for num_point_prompt in [5, 10, 20, 30, 40, 50]:
-    # for num_point_prompt in [2,3]:
-    #     parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True)
-    #     parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False)
-
+    for num_point_prompt in [2,3,5,10]:
+        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=True, land_type=land_type)
+        parallel_multiple_gt_mask(mode='multi_point_{}'.format(num_point_prompt), pixel_IOU_mode=False, land_type=land_type)
 
     # parallel processing of the pxiel IOU for BBox prompt
-    parallel_pixel_IOU_calc_from_bbox_prompt('datasets/crop/masks_filled',
-                                             gt_mask_folder='datasets/crop/masks_filled')
-    # parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/crop')
+    parallel_pixel_IOU_calc_from_bbox_prompt('datasets/DG_land/diff_train_masks/{}'.format(land_type),
+                                             land_type=land_type)
 
-    # For the detector prediction
-    # mask_folder = 'detector_predictions/crop_delineation_filled'
+    # parallel_pixel_IOU_calc_from_bbox_prompt('detector_predictions/dg_road/masks')
+    # mask_folder = 'detector_predictions/dg_road/masks'
     # parallel_pixel_IOU_calc_from_bbox_prompt(mask_folder,
-    #                                          gt_mask_folder='datasets/crop/masks_filled')
-
+    #                                          gt_mask_folder=mask_folder.replace('masks', 'gt'))

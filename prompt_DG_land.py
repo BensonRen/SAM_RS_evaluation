@@ -100,14 +100,14 @@ def prompt_with_multiple_points(predictor, input_points, save_mask_path,
                                 save_mask_prefix + '_{}_{}_{}.npy'.format(scores[0],scores[1],scores[2]))
         np.save(save_name, masks)
 
-def prompt_folder_with_point(mode, max_img=999999):
-    save_mask_path = 'crop_{}_prompt_save'.format(mode)
+def prompt_folder_with_point(mode, land_type, max_img=999999):
+    save_mask_path = 'DG_land_{}_{}_prompt_save'.format(land_type, mode)
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
 
     # Load the points to be prompted
     print('...loading pickel of prompt points')
-    with open('point_prompt_pickles/crop_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    with open('point_prompt_pickles/DG_land_{}_{}_prompt.pickle'.format(land_type, mode), 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
     
     # Load predictor
@@ -117,7 +117,7 @@ def prompt_folder_with_point(mode, max_img=999999):
     # Loop over all the keys inside the prompt_point_dict
     for img_name in tqdm(prompt_point_dict.keys()):
         # Get image path
-        img_path = os.path.join('datasets/crop/imgs', img_name.replace('.png','.jpeg'))
+        img_path = os.path.join('datasets/DG_land/train', img_name.replace('mask.png','sat.jpg'))
         # Make sure this image exist
         if not os.path.exists(img_path):
             print('Warning!!! {} does not exist, bypassing now'.format(img_path))
@@ -140,15 +140,16 @@ def prompt_folder_with_point(mode, max_img=999999):
                 break
 
 
-def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999):
-    save_mask_path = 'crop_{}_prompt_save_numpoint_{}'.format(mode, num_point_prompt)
+def prompt_folder_with_multiple_points(mode, num_point_prompt, land_type, max_img=999999):
+    save_mask_path = 'DG_land_{}_{}_prompt_save_numpoint_{}'.format(land_type, mode, num_point_prompt)
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
 
     # Load the points to be prompted
     print('...loading pickel of prompt points')
-    with open('point_prompt_pickles/crop_{}_prompt.pickle'.format(mode), 'rb') as handle:
+    with open('point_prompt_pickles/DG_land_{}_{}_prompt.pickle'.format(land_type, mode), 'rb') as handle:
         prompt_point_dict = pickle.load(handle)
+    
     
     # Load predictor
     print('...loading predictor')
@@ -158,7 +159,7 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999):
     # Loop over all the keys inside the prompt_point_dict
     for img_name in tqdm(prompt_point_dict.keys()):
         # Get image path
-        img_path = os.path.join('datasets/crop/imgs', img_name.replace('.png','.jpeg'))
+        img_path = os.path.join('datasets/DG_land/train', img_name.replace('mask.png','sat.jpg'))
         # Make sure this image exist
         if not os.path.exists(img_path):
             print('Warning!!! {} does not exist, bypassing now'.format(img_path))
@@ -193,11 +194,11 @@ def prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,):
     cv2.imwrite(save_name, masks.astype(np.uint8)[0, :, :]*255)
     # np.save(save_name, masks)
 
-def prompt_folder_with_bbox(mask_folder, bbox_df_file='bbox.csv',
-                            img_folder = 'datasets/crop/imgs',
+def prompt_folder_with_bbox(mask_folder,land_type, bbox_df_file='bbox.csv',
+                            img_folder = 'datasets/DG_land/train',
                             max_img=999999):
     # Make the saving folder
-    save_mask_path = 'crop_bbox_prompt_save_{}'.format(mask_folder)
+    save_mask_path = 'DG_land_{}_bbox_prompt_save_{}'.format(land_type, mask_folder)
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
 
@@ -214,7 +215,7 @@ def prompt_folder_with_bbox(mask_folder, bbox_df_file='bbox.csv',
     # Loop over all the keys inside the prompt_point_dict
     for ind, row in tqdm(df.iterrows(), total=df.shape[0]):
         # Get image path
-        img_path = os.path.join(img_folder, row['img_name'].replace('.png','.jpeg'))  # Note that inria_DG has .jpeg for img and .png for mask
+        img_path = os.path.join(img_folder, row['img_name'].replace('mask.png','sat.jpg'))  # Note that DG_land_{} has .jpg for img and .png for mask
         # Make sure this image exist
         if not os.path.exists(img_path):
             print('Warning!!! {} does not exist, bypassing now'.format(img_path))
@@ -257,25 +258,24 @@ def process_str_bbox_into_bbox(bbox_str,
 
 if __name__ == '__main__':
     ###############################################
-    # Prompting the center/random points for the Inria_DG#
+    # Prompting the center/random points for the DG_land_{}#
     ###############################################
-    # prompt_folder_with_point(mode='random')
-    # prompt_folder_with_point(mode='center')
+    land_type ='agriculture_land' #'water'#  'urban_land'   #   #  
+    # prompt_folder_with_point(mode='random', land_type=land_type)
+    # prompt_folder_with_point(mode='center', land_type=land_type)
+
 
     # Multiple points
-    # prompt_folder_with_multiple_points(mode = 'multi_point_rand_50', 
-    #                                 num_point_prompt=50)
-
     # for num_point_prompt in [5, 10, 20]:
-    # # for num_point_prompt in [30, 40, 50]:
-    # for num_point_prompt in [2,3]:
+    # for num_point_prompt in [30, 40, 50]:
+    # for num_point_prompt in [2,3, 5, 10]:
     #     prompt_folder_with_multiple_points(mode = 'multi_point_rand_50', 
-    #                                     num_point_prompt=num_point_prompt)
-
+    #                                     num_point_prompt=num_point_prompt, land_type=land_type)
+        
     # Prompting with bbox
-    # mask_folder = 'datasets/crop/masks_filled'         # The ground truth boxes
-    # mask_folder = 'detector_predictions/inria_dg/masks'           # The detecotr output boxes
-    mask_folder = 'detector_predictions/crop_delineation_filled'
-    prompt_folder_with_bbox(mask_folder, )
+    # mask_folder = 'DG_land_{}/train'
+    # mask_folder = 'detector_predictions/DG_land_{}/masks'
+    mask_folder = 'datasets/DG_land/diff_train_masks/{}'.format(land_type)
+    prompt_folder_with_bbox(mask_folder, land_type=land_type)
     # prompt_folder_with_bbox(mask_folder, img_folder=mask_folder.replace('masks', 'cropped_imgs'))
     

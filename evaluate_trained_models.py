@@ -21,14 +21,22 @@ def IoU_single_object_mask(gt_mask, pred_mask):
     num_union = np.sum(union)
     return  num_intersection / num_union, num_intersection, num_union
 
-def evaluate_single_dataset(folder,):
+def evaluate_single_dataset(folder, gt_folder=None, mask_folder=None):
     """
     Evaluate the pixel IOU of a single dataset
     """
-    gt_mask_folder = os.path.join(folder, 'gt')
-    pred_mask_folder = os.path.join(folder, 'masks')
+    if gt_folder is None:
+        gt_mask_folder = os.path.join(folder, 'gt')
+    else:
+        gt_mask_folder = gt_folder
+    if mask_folder is None:
+        pred_mask_folder = os.path.join(folder, 'masks')
+    else:
+        pred_mask_folder = mask_folder
     intersection_tot, union_tot = 0, 0
-    for file in tqdm(os.listdir(gt_mask_folder)):
+    for file in tqdm(os.listdir(pred_mask_folder)):
+        if '.csv' in file:
+            continue
         gt_mask_file = os.path.join(gt_mask_folder, file)
         pred_mask = cv2.imread(os.path.join(pred_mask_folder, file))[:, :, 0]
         if not os.path.exists(gt_mask_file):
@@ -59,8 +67,12 @@ def evaluate_multi_dataset():
         evaluate_single_dataset(os.path.join(base_dir, dataset))
 
 if __name__ == '__main__':
-    evaluate_multi_dataset()
-    
+    # evaluate_multi_dataset()
+
+    # For crop filled only (others pls use the above function)
+    evaluate_single_dataset(folder='crop_filled', 
+                            gt_folder='datasets/crop/masks_filled', 
+                            mask_folder='detector_predictions/crop_delineation_filled')
     # Copy files
     # copy_file(pred_mask_dir='/home/sr365/SAM/detector_predictions/solar/masks',
     #            gt_source_dir='/home/sr365/SAM/datasets/solar_masks', 

@@ -281,13 +281,25 @@ if __name__ == '__main__':
     # get_list_of_centers(folder='inria/train/gt',img_name='austin10.tif', 
     #                     output_dict=output_dict, num_count_dict=num_count_dict )
 
-
     # # Run all
     # folder = 'datasets/solar_masks'                                # Solar-pv
     # folder = 'datasets/Combined_Inria_DeepGlobe_650/patches'       # Inria-DG
     # folder = 'datasets/cloud/train_processed'                      # Cloud
     # folder = 'datasets/DG_road/train'                              # DG_road
-    folder = 'datasets/crop/masks_filled'                              # Crop
+    # folder = 'datasets/crop/masks_filled'                              # Crop
+    # The DG_land series
+
+    DG_land_type = 'urban_land' # 'water' #  'agriculture_land' 
+    dataset = 'DG_land_{}'.format(DG_land_type)
+    folder = 'datasets/DG_land/diff_train_masks/{}'.format(DG_land_type)
+    # folder = 'datasets/DG_land/diff_train_masks/water'
+    # folder = 'datasets/DG_land/diff_train_masks/urban_land'
+    # # below are currently not used
+    # folder = 'datasets/DG_land/diff_train_masks/forest_land'
+    # folder = 'datasets/DG_land/diff_train_masks/barren_land'
+    # folder = 'datasets/DG_land/diff_train_masks/rangeland'
+    # folder = 'datasets/DG_land/diff_train_masks/unknown'
+    
     # for file in os.listdir(folder):
     # k, k_limit = 0, 100
     k, k_limit = 0, 9999999999
@@ -299,7 +311,7 @@ if __name__ == '__main__':
     all_files = [file for file in os.listdir(folder) if '.png' in file] # .png is for inria_DG, Road, Crop
     # all_files = [file for file in os.listdir(folder) if 'gt' in file] # .png is for cloud
 
-    num_cpu = 10
+    num_cpu = 50
     # mode = 'center'
     # mode = 'random'
     k = 50
@@ -326,6 +338,9 @@ if __name__ == '__main__':
         pool.close()
         pool.join()
     output_dict = dict(ChainMap(*output_dict))
+    
+    with open('{}_{}_prompt.pickle'.format(dataset, mode), 'wb') as handle:
+                pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     # with open('solar_pv_{}_prompt.pickle'.format(mode), 'wb') as handle:
     #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -339,8 +354,8 @@ if __name__ == '__main__':
     # with open('cloud_{}_prompt.pickle'.format(mode), 'wb') as handle:
     #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('crop_{}_prompt.pickle'.format(mode), 'wb') as handle:
-                pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open('crop_{}_prompt.pickle'.format(mode), 'wb') as handle:
+    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     quit()
 
