@@ -6,66 +6,6 @@ import pickle, random, torch, cv2, os
 from multiprocessing import Pool
 from collections import ChainMap
 
-def k_th_occurence(k, list_of_binary):
-    """
-    Find the kth occurence of 1 of a binary list
-    """
-    # Alternative implementation (Take 3:32 for 8 instances)
-    # return [i for i, n in enumerate(list_of_binary) if n == 1][k]
-
-    # Original implementation (Take 3:32 for 8 instances)
-    occurence = 0
-    for i in range(len(list_of_binary)):
-        if list_of_binary[i] == 1:
-            occurence += 1
-        if occurence == k:
-            return i
-    return 1/0  # Stop here, this is error if algo comes to this point
-
-def k_list_th_occurence(k_list, list_of_binary):
-    # Original implementation (Take 3:32 for 8 instances)
-    occurence = 0
-    output_list = np.zeros(len(k_list))
-    cur_found = 0
-    for i in range(len(list_of_binary)):
-        if list_of_binary[i] == 1:
-            occurence += 1
-            if occurence in k_list:
-                output_list[cur_found] = i
-                cur_found += 1
-        else:
-            continue
-        if cur_found == len(k_list):
-            return output_list
-    print('k_list', k_list)
-    return 1/0  # Stop here, this is error if algo comes to this point
-
-def get_kth_for_all(num_to_find_list, k_list, conected_comp_label_array, error_code=-99999):
-    """
-    The O(l*n) version of the original naive O(l*n*numLabels) algorithm
-    We only go through the whole conected_comp_label_array once
-    """
-    assert len(num_to_find_list) == len(k_list), 'your size of num to find list is different from k_list'
-    count_dict = {}
-    # Setup the count list
-    for ind, num in enumerate(num_to_find_list):
-        count_dict[num] = k_list[ind]
-    # count_list = np.zeros(len(num_to_find_list))
-    return_list = np.ones(len(num_to_find_list)) * error_code # initialize to error_code
-    # Loop over the whole label array
-    for i in tqdm(range(len(conected_comp_label_array))):
-        # Get current pixel label class
-        cur_label = conected_comp_label_array[i]
-        if cur_label not in count_dict:
-            continue
-        # Increase the current label count
-        count_list[cur_label] += 1
-        # If this is equal to the k_list target list, record current index i to the return list
-        if count_list[cur_label] == k_list[cur_label]:
-            return_list[cur_label] = i
-    assert np.sum(return_list == error_code) == 0, 'Not all number found its k_th num, check!'
-    return return_list
-
 def get_list_of_centers(folder, img_name, output_dict, num_count_dict=None, 
                         verbose=False, size_limit=0):
     if 'cloud' in folder:
@@ -110,34 +50,11 @@ def get_list_of_centers(folder, img_name, output_dict, num_count_dict=None,
             output_dict[img_name].append((int(centroids[i, 0]), int(centroids[i, 1])))
             # num_count_dict['center'] += 1
         else: # We need to find the closest component within such component
-            midpoint_outside_index_list.append(i+1)
-            k_list.append(num_pixel // 2)
+            cur_object_map = labels == i
+            cY, cX = get_most_inner_point_from_a_binary_map(cur_object_map)
+            output_dict[img_name].append((cY, cX))
+            assert labels[cX, cY] == i, 'The return value of the get_most_innder_point_from_a_binary_map is not on the object'    
 
-    # If every object center is inside, end the function
-    if len(midpoint_outside_index_list) == 0:
-        return
-    
-    print('entering the center ouside part, going through {} of them'.format(len(midpoint_outside_index_list)))
-    # Need to deal with objects that have class that its center outside itself
-    # Start from getting the coordinate sequences
-    l, w = np.shape(labels) # Get the size of the current image
-    l_index = np.broadcast_to(np.arange(l), (w, l)).T
-    w_index = np.broadcast_to(np.arange(w), (l, w))
-    l_index_flat = np.reshape(l_index, [-1, 1])
-    w_index_flat = np.reshape(w_index, [-1, 1])
-
-    # for center_out_ind, k in tqdm(zip(midpoint_outside_index_list, k_list), total=len(k_list)):
-    for center_out_ind, k in zip(midpoint_outside_index_list, k_list):
-        indicator_mask = (mask_mul_labels == center_out_ind)
-        list_of_component = np.reshape(indicator_mask, [-1, 1])
-        mid_point_index = k_th_occurence(k, list_of_component)
-        if img_name not in output_dict:
-            output_dict[img_name] = []
-        output_dict[img_name].append((int(w_index_flat[mid_point_index]), int(l_index_flat[mid_point_index])))
-        assert indicator_mask[l_index_flat[mid_point_index], w_index_flat[mid_point_index]] == 1, 'in closest setting, x,y are possibly flipped'
-        # num_count_dict['midpoint'] += 1
-        # num_count_dict['set_of_non_concave_panel_imgs'].add(img_name)
-    
     return output_dict
 
 
@@ -339,24 +256,8 @@ if __name__ == '__main__':
         pool.join()
     output_dict = dict(ChainMap(*output_dict))
     
-    with open('{}_{}_prompt.pickle'.format(dataset, mode), 'wb') as handle:
+    with open('{}_{}_prompt_new_inner.pickle'.format(dataset, mode), 'wb') as handle:
                 pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    # with open('solar_pv_{}_prompt.pickle'.format(mode), 'wb') as handle:
-    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    # with open('inria_DG_{}_prompt.pickle'.format(mode), 'wb') as handle:
-    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    
-    # with open('DG_road_{}_prompt.pickle'.format(mode), 'wb') as handle:
-    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    # with open('cloud_{}_prompt.pickle'.format(mode), 'wb') as handle:
-    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    # with open('crop_{}_prompt.pickle'.format(mode), 'wb') as handle:
-    #             pickle.dump(output_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
     quit()
 
     

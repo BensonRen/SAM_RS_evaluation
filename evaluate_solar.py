@@ -11,22 +11,6 @@ import glob
 from multiprocessing import Pool
 
 
-def IoU_single_object_mask(gt_mask, pred_mask):
-    """
-    gt_mask and pred_mask are both 0/1 valued masks
-    """
-    intersection = gt_mask * pred_mask
-    union = (gt_mask + pred_mask) > 0
-    num_intersection = np.sum(intersection)
-    num_union = np.sum(union)
-    return  num_intersection / num_union, num_intersection, num_union
-
-def get_IoU_for_3masks(gt_mask, pred_3masks):
-    IoU_list = np.zeros(3)
-    for i in range(3):
-        IoU_list[i], _ , _ = IoU_single_object_mask(gt_mask, pred_3masks[i, :, :])
-    return IoU_list
-
 def get_pixel_IOU_from_gt_mask_point_prompt(gt_file, prompt_point_dict, save_df, mode,
     gt_folder='datasets/solar_masks'):
     """

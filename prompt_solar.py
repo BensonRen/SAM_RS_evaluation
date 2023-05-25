@@ -10,154 +10,132 @@ from scipy import signal
 import pandas as pd
 import re # Remove duplicate string
 sys.path.append("..")
-from segment_anything import sam_model_registry, SamPredictor
+from misc_utils import *
 
-# Some global variables
-sam_checkpoint = "sam_vit_h_4b8939.pth"
-model_type = "vit_h"
-device = "cuda"
-
-def load_predictor():
-    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-    sam.to(device=device)
-    predictor = SamPredictor(sam)
-    return predictor
-
-def show_mask(mask, ax, random_color=False):    # Copied from predictor_example.ipynb
-    if random_color:
-        color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
-    else:
-        color = np.array([30/255, 144/255, 255/255, 0.6])
-    h, w = mask.shape[-2:]
-    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
-    ax.imshow(mask_image)
-    
-def show_points(coords, labels, ax, marker_size=375):       # Copied from predictor_example.ipynb
-    pos_points = coords[labels==1]
-    neg_points = coords[labels==0]
-    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
-    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)   
-    
-def show_box(box, ax):                      # Copied from predictor_example.ipynb
-    x0, y0 = box[0], box[1]
-    w, h = box[2] - box[0], box[3] - box[1]
-    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0,0,0,0), lw=2))    
-
-def prompt_with_point(predictor, input_point, save_mask_path, save_mask_prefix, 
-                    input_label = np.array([1])):
-    """
-    Prompt the predictor with img and point pair and save the mask in the save_mask_name
-    :param predictor: The SAM loaded predictor, which has already been set_image before
-    :param img_path: The location of the image
-    :param input_point: A single point of prompting
-    :param save_mask_prefix: The prefix to save the mask
-    :param save_mask_path: The position to save the mask
-    :param input_label: This is for the signifying whether it is foreground or background
-    """
-    # Make inference using SAM
-    masks, scores, logits = predictor.predict(
-            point_coords=input_point,
-            point_labels=input_label,
-            multimask_output=True,)
-    # make the save path
-    save_name = os.path.join(save_mask_path, 
-                             save_mask_prefix + '_{}_{}_{}.npy'.format(scores[0],scores[1],scores[2]))
-    np.save(save_name, masks)
-
-def prompt_with_multiple_points(predictor, input_points, save_mask_path, 
-                                save_mask_prefix, png_mode=True): # Pickle mode is not saving space
-    """
-    Prompt the predictor with img and point pair and save the mask in the save_mask_name
-    :param predictor: The SAM loaded predictor, which has already been set_image before
-    :param img_path: The location of the image
-    :param input_point: A single point of prompting
-    :param save_mask_prefix: The prefix to save the mask
-    :param save_mask_path: The position to save the mask
-    :param input_label: This is for the signifying whether it is foreground or background
-    """
-    input_labels = np.ones(len(input_points))
-    # Make inference using SAM
-    masks, scores, logits = predictor.predict(
-            point_coords=input_points,
-            point_labels=input_labels,
-            multimask_output=True,)
-    
-    if png_mode:
-        save_name = os.path.join(save_mask_path, 
-                                save_mask_prefix + '_{}_{}_{}.png'.format(scores[0],scores[1],scores[2]))
-        cv2.imwrite(save_name, np.swapaxes(masks, 0, 2)*255)
-        return 
-    else:
-        # make the save path
-        save_name = os.path.join(save_mask_path, 
-                                save_mask_prefix + '_{}_{}_{}.npy'.format(scores[0],scores[1],scores[2]))
-        np.save(save_name, masks)
-
-def prompt_with_mask(predictor, input_mask, save_mask_path, save_mask_prefix, ):
-    """
-    The function to prompt the SAM model with a mask of the same image
-    """
-    # Make inference using SAM
-    masks, scores, logits = predictor.predict(
-            mask_input = input_mask,
-            multimask_output=True,)
-    # make the save path
-    save_name = os.path.join(save_mask_path, 
-                             save_mask_prefix + '_{}_{}_{}.png'.format(scores[0],scores[1],scores[2]))
-    cv2.imwrite(save_name, np.swapaxes(masks, 0, 2)*255)
-
-def prompt_with_bbox(predictor, input_bbox, save_mask_path, save_mask_prefix,):
-    masks, _, _ = predictor.predict(
-            box=input_bbox[None, :],   # This is not sure
-            multimask_output=False,)
-    # make the save path
-    save_name = os.path.join(save_mask_path, 
-                             save_mask_prefix + '.png')
-    # print(np.shape(masks))
-    cv2.imwrite(save_name, masks.astype(np.uint8)[0, :, :]*255)
-    # np.save(save_name, masks)
-
-def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999):
-    save_mask_path = 'solar_pv_{}_prompt_save_numpoint_{}'.format(mode, num_point_prompt)
+def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999, 
+                                       dataset='solar_pv',
+                                       mask_folder='datasets/solar_masks',
+                                       img_folder='datasets/solar-pv',
+                                       img_postfix='tif',
+                                       mask_postfix='tif',
+                                       size_limit=0,
+                                       SAM_refine_feedback=True,
+                                       choose_oracle=False):
+    # Set up the saving place
+    save_mask_path = '{}_{}_prompt_save_numpoint_{}_oracle_{}'.format(dataset, 
+                                                                      mode, 
+                                                                      num_point_prompt,
+                                                                      choose_oracle)
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
 
-    # Load the points to be prompted
-    print('...loading pickel of prompt points')
-    with open('point_prompt_pickles/solar_pv_{}_prompt.pickle'.format(mode), 'rb') as handle:
-        prompt_point_dict = pickle.load(handle)
+    img_name_list = [file for file in os.listdir(mask_folder) if mask_postfix in file]
     
     # Load predictor
     print('...loading predictor')
     predictor = load_predictor()
-    print(predictor)
+
+    # Pre-allocate a dictionary to save the prompt point information
+    prompt_point_dict = {}
 
     # Loop over all the keys inside the prompt_point_dict
-    for img_name in tqdm(prompt_point_dict.keys()):
+    for img_name in tqdm(img_name_list):
+        cur_img_prompt_point = {}
         # Get image path
-        img_path = os.path.join('datasets/solar-pv', img_name)
+        img_path = os.path.join(img_folder, img_name.replace(mask_postfix, img_postfix))
         # Make sure this image exist
         if not os.path.exists(img_path):
             print('Warning!!! {} does not exist, bypassing now'.format(img_path))
             continue
         # Load the image and transform color
         image = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Why do we need to cvt color?
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # Set the predictor
         predictor.set_image(image)
+        # Get the masks and connected components
+        mask = cv2.imread(os.path.join(mask_folder, img_name))
+        # Find the connected component
+        output = cv2.connectedComponentsWithStats(
+                mask[:, :, 0], 4)
+        # Get them into structured outputs
+        (numLabels, labels, stats, centroids) = output
 
-        # Get the input points (they are all in the form of a list)
-        for ind, input_point in enumerate(prompt_point_dict[img_name]):
-            save_mask_prefix = img_name.split('.')[0] + '_prompt_ind_{}_'.format(ind)
-            # Take the random num_point_prompt points (they are random so just the first)
-            input_point_np = input_point[:num_point_prompt, :]
-            prompt_with_multiple_points(predictor, input_point_np, save_mask_path, save_mask_prefix)
+        if np.max(mask > 1):    # This is to make the mask binary
+            mask_binary = mask[:,:,0] > 122
+        else:
+            mask_binary = mask[:, :, 0]
+        mask_mul_labels = mask_binary * (labels + 1) # Label + 1 is to make sure they all start from 1
+
+        # Loop over the each "objects" in this current image
+        for i in range(numLabels):
+            cur_img_prompt_point[i] = {}
+            num_pixel = np.sum(mask_mul_labels == (i+1))
+            # First identify background
+            if num_pixel <= size_limit:
+                continue
+            indicator_mask = mask_mul_labels == (i + 1)
+
+            # Set up the point list and the label list
+            input_point_list, input_label_list = [], []
+            last_logit = None   # Initialize the last logit to be None
+
+            for j in range(num_point_prompt):
+                save_mask_prefix = img_name.split('.')[0] + '_prompt_ind_{}_point_num_{}'.format(i, j)
+                if j == 0:  # The first prompt is special, because it does not have 
+                    cY, cX = get_most_inner_point_from_a_binary_map(indicator_mask)
+                else: # The iterative experience where each time get a point from 
+                    error_mask = np.uint8(np.bitwise_xor(indicator_mask, 
+                                                         last_prediction_mask))
+                    cY, cX = get_most_inner_point_from_a_binary_map(error_mask)
+                
+                # There might be more than one single point have furthest distance to background, randomly chose one
+                random_idx = np.random.randint(0, len(cX))
+                cX, cY = int(cX[random_idx]), int(cY[random_idx])
+                # Get the current point into the prompt_list
+                input_point_list.append((cX, cY))
+                # print('cX, cY = {}, {}'.format(cX, cY))
+                # print('shape of indicator mask is {}'.format(np.shape(indicator_mask)))
+
+                # The value of such pixel is directly the label
+                input_label_list.append(int(indicator_mask[cY, cX]))
+                masks, scores, logits = prompt_with_multiple_points(predictor, 
+                                            input_points=input_point_list, 
+                                            input_labels=input_label_list,
+                                            save_mask_path=save_mask_path, 
+                                            save_mask_prefix=save_mask_prefix,
+                                            logit_refine=last_logit,
+                                            )
+                
+                # Choose according to the selection criteria
+                index_chosen = choose_mask(masks, scores, 
+                                            ground_truth=indicator_mask,
+                                            oracle=choose_oracle)
+                
+                # Record the last prediciton mask as well as the logit
+                last_prediction_mask = masks[index_chosen, :, :]
+                last_logit = logits[index_chosen, :, :]
+                last_logit = last_logit[None, :, :]
+            
+            # Save the input point and label list
+            cur_img_prompt_point[i]['points'] = input_point_list
+            cur_img_prompt_point[i]['labels'] = input_label_list
         
+        # Save the prompt dictionary into main dict
+        prompt_point_dict[img_name] = cur_img_prompt_point
+
+        # This is for testing purpose that ends the process early
         if max_img is not None:
             max_img -= 1
             if max_img < 0:
                 break
-    
+
+    # Save the whole dictionary down
+    with open(os.path.join(save_mask_path, 
+                        '{}_{}_choose_oracle_{}_iterative_prompt.pickle'.format(dataset, 
+                                                                                num_point_prompt, 
+                                                                                choose_oracle)), 
+                           'wb') as handle:
+                pickle.dump(prompt_point_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def prompt_folder_with_bbox(mask_folder, bbox_df_file='bbox.csv',
                             img_folder = 'solar-pv',
@@ -370,16 +348,58 @@ if __name__ == '__main__':
     # prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=200)
     # prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=55, save_prompt=True, max_img=30)
 
+    # Solar
+    # prompt_folder_with_multiple_points(mode='iterative_10_points',
+    #                                    num_point_prompt=10,
+    #                                    max_img=999999, 
+    #                                    dataset='solar_pv',
+    #                                    mask_folder='datasets/solar_masks',
+    #                                    img_folder='datasets/solar-pv',
+    #                                    img_postfix='tif',
+    #                                    mask_postfix='tif',
+    #                                    size_limit=0,
+    #                                    SAM_refine_feedback=True,
+    #                                    choose_oracle=True)
+    
+    # inria_DG
+    # prompt_folder_with_multiple_points(mode='iterative_10_points',
+    #                                     num_point_prompt=10,
+    #                                     max_img=999999, 
+    #                                     dataset='inria_dg',
+    #                                     mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches',
+    #                                     img_folder='datasets/Combined_Inria_DeepGlobe_650/patches',
+    #                                     img_postfix='jpg',
+    #                                     mask_postfix='png',
+    #                                     size_limit=0,
+    #                                     SAM_refine_feedback=True,
+    #                                     choose_oracle=False)
 
+    # DG road
+    prompt_folder_with_multiple_points(mode='iterative_10_points',
+                                        num_point_prompt=10,
+                                        max_img=999999, 
+                                        dataset='dg_road',
+                                        mask_folder='datasets/DG_road/train',
+                                        img_folder='datasets/DG_road/train',
+                                        img_postfix='sat.jpg',
+                                        mask_postfix='mask.png',
+                                        size_limit=0,
+                                        SAM_refine_feedback=True,
+                                        choose_oracle=True)
 
-    # Multiple points
-    # for num_point_prompt in [5, 10, 20]:
-    # for num_point_prompt in [30, 40, 50]:
-    for num_point_prompt in [2]:
-        prompt_folder_with_multiple_points(mode = 'multi_point_rand_50', 
-                                        num_point_prompt=num_point_prompt)
-        
-
+    # Cloud
+    # prompt_folder_with_multiple_points(mode='iterative_10_points',
+    #                                     num_point_prompt=10,
+    #                                     max_img=999999, 
+    #                                     dataset='cloud',
+    #                                     mask_folder='datasets/cloud/train_processed',
+    #                                     img_folder='datasets/cloud/train_processed',
+    #                                     img_postfix='img_',
+    #                                     mask_postfix='gt_',
+    #                                     size_limit=50,
+    #                                     SAM_refine_feedback=True,
+    #                                     choose_oracle=False)
+    
     # mask_folder = 'solar_masks'
     # # mask_folder = 'solar_finetune_mask'
     # prompt_folder_with_bbox(mask_folder)
