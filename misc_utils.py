@@ -12,17 +12,43 @@ import re # Remove duplicate string
 sys.path.append("..")
 from segment_anything import sam_model_registry, SamPredictor
 
+sys.path.append('ritm_interactive_segmentation')
+# The package from RITM https://github.com/yzluka/ritm_interactive_segmentation
+from isegm.inference.clicker import Click
+from isegm.inference import utils as is_utils
+from isegm.inference.predictors import get_predictor as is_get_predictor  
+from isegm.inference.evaluation import evaluate_sample_onepass as is_evaluate_sample_onepass
+from isegm.inference.evaluation import evaluate_sample_onepass_preset_image_no_iou
 # Some global variables
-sam_checkpoint = "sam_vit_h_4b8939.pth"
+sam_checkpoint = "pretrained_model_weight/sam_vit_h_4b8939.pth"
+ritm_checkpoint = 'pretrained_model_weight/coco_lvis_h32_itermask.pth'
 model_type = "vit_h"
 device = "cuda"
 
-def load_predictor():
-    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-    sam.to(device=device)
-    predictor = SamPredictor(sam)
+def load_predictor(Flag_SAM_True_RITM_False):
+    """
+    A unified API to load the predictor for both SAM and RITM
+    """
+    print('...loading {} predictor'.format('SAM' if Flag_SAM_True_RITM_False else 'RITM'))
+    if Flag_SAM_True_RITM_False:
+        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+        sam.to(device=device)
+        predictor = SamPredictor(sam)
+    else:
+        model = is_utils.load_is_model(ritm_checkpoint, "cuda")
+        predictor = is_get_predictor(model, "NoBRS", "cuda")
     return predictor
 
+def set_image_predictor(predictor, image, Flag_SAM_True_RITM_False):
+    """
+    A unified API to set image for the predictor
+    """
+    if Flag_SAM_True_RITM_False:
+        predictor.set_image(image)
+    else:
+        predictor.set_input_image(image)
+    return
+    
 def show_mask(mask, ax, random_color=False):    # Copied from predictor_example.ipynb
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
@@ -145,6 +171,21 @@ def prompt_with_multiple_points(predictor, input_points, input_labels,
         np.save(save_name, masks)
 
     return masks, scores, logits
+
+def prompt_RITM_with_multiple_points(predictor, input_point_list, image, 
+                                     gt_mask, save_mask_path, save_mask_prefix):
+    """
+    Calling the RITM inference code API and then saving the results down
+    """
+    preds, _ = evaluate_sample_onepass_preset_image_no_iou(
+                                            gt_mask=gt_mask,
+                                            predictor=predictor, 
+                                            clicks=input_point_list)
+    # Saving the RITM output
+    save_name = os.path.join(save_mask_path, save_mask_prefix + '.png')
+    preds = preds[:,:,None].repeat(3,2)
+    cv2.imwrite(save_name, preds*255)
+    return preds
 
 def prompt_with_mask(predictor, input_mask, save_mask_path, save_mask_prefix, ):
     """

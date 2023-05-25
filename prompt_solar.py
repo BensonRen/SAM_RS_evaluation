@@ -20,20 +20,26 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
                                        mask_postfix='tif',
                                        size_limit=0,
                                        SAM_refine_feedback=True,
-                                       choose_oracle=False):
+                                       choose_oracle=False,
+                                       predictor_is_SAM=True):
     # Set up the saving place
-    save_mask_path = '{}_{}_prompt_save_numpoint_{}_oracle_{}'.format(dataset, 
-                                                                      mode, 
-                                                                      num_point_prompt,
-                                                                      choose_oracle)
+    if predictor_is_SAM:
+        save_mask_path = '{}_{}_prompt_save_numpoint_{}_oracle_{}'.format(dataset, 
+                                                                        mode, 
+                                                                        num_point_prompt,
+                                                                        choose_oracle)
+    else:
+         save_mask_path = 'RITM_{}_{}_prompt_save_numpoint_{}_oracle'.format(dataset, 
+                                                                        mode, 
+                                                                        num_point_prompt)
+         
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
 
     img_name_list = [file for file in os.listdir(mask_folder) if mask_postfix in file]
     
     # Load predictor
-    print('...loading predictor')
-    predictor = load_predictor()
+    predictor = load_predictor(predictor_is_SAM)
 
     # Pre-allocate a dictionary to save the prompt point information
     prompt_point_dict = {}
@@ -51,7 +57,7 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # Set the predictor
-        predictor.set_image(image)
+        set_image_predictor(predictor, image, predictor_is_SAM)
         # Get the masks and connected components
         mask = cv2.imread(os.path.join(mask_folder, img_name))
         # Find the connected component
@@ -91,31 +97,52 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
                 # There might be more than one single point have furthest distance to background, randomly chose one
                 random_idx = np.random.randint(0, len(cX))
                 cX, cY = int(cX[random_idx]), int(cY[random_idx])
-                # Get the current point into the prompt_list
-                input_point_list.append((cX, cY))
-                # print('cX, cY = {}, {}'.format(cX, cY))
-                # print('shape of indicator mask is {}'.format(np.shape(indicator_mask)))
 
-                # The value of such pixel is directly the label
-                input_label_list.append(int(indicator_mask[cY, cX]))
-                masks, scores, logits = prompt_with_multiple_points(predictor, 
-                                            input_points=input_point_list, 
-                                            input_labels=input_label_list,
-                                            save_mask_path=save_mask_path, 
-                                            save_mask_prefix=save_mask_prefix,
-                                            logit_refine=last_logit,
-                                            )
+                #########################
+                # The SAM way of things #
+                #########################
+                if predictor_is_SAM:
+                    # Get the current point into the prompt_list
+                    input_point_list.append((cX, cY))
+                    # print('cX, cY = {}, {}'.format(cX, cY))
+                    # print('shape of indicator mask is {}'.format(np.shape(indicator_mask)))
+
+                    # The value of such pixel is directly the label
+                    input_label_list.append(int(indicator_mask[cY, cX]))
+                    masks, scores, logits = prompt_with_multiple_points(predictor, 
+                                                input_points=input_point_list, 
+                                                input_labels=input_label_list,
+                                                save_mask_path=save_mask_path, 
+                                                save_mask_prefix=save_mask_prefix,
+                                                logit_refine=last_logit,
+                                                )
+                    
+                    # Choose according to the selection criteria
+                    index_chosen = choose_mask(masks, scores, 
+                                                ground_truth=indicator_mask,
+                                                oracle=choose_oracle)
+                    
+                    # Record the last prediciton mask as well as the logit
+                    last_prediction_mask = masks[index_chosen, :, :]
+                    last_logit = logits[index_chosen, :, :]
+                    last_logit = last_logit[None, :, :]
                 
-                # Choose according to the selection criteria
-                index_chosen = choose_mask(masks, scores, 
-                                            ground_truth=indicator_mask,
-                                            oracle=choose_oracle)
-                
-                # Record the last prediciton mask as well as the logit
-                last_prediction_mask = masks[index_chosen, :, :]
-                last_logit = logits[index_chosen, :, :]
-                last_logit = last_logit[None, :, :]
-            
+                ##########################
+                # The RITM way of things #
+                ##########################
+                else:
+                    # RITM uses CLICK class for each of its clicks, with label, corrds and indx
+                    input_point_list.append(Click(is_positive=int(indicator_mask[cY, cX]),
+                                                   coords=(cY, cX), 
+                                                   indx = j))
+                    input_label_list.append(int(indicator_mask[cY, cX]))    # This is just for recoriding, not useful
+                    masks = prompt_RITM_with_multiple_points(predictor, input_point_list, image, 
+                                                    indicator_mask,
+                                                    save_mask_path=save_mask_path, 
+                                                    save_mask_prefix=save_mask_prefix,)
+                    last_prediction_mask = masks[:, :, 0]
+                    
+
             # Save the input point and label list
             cur_img_prompt_point[i]['points'] = input_point_list
             cur_img_prompt_point[i]['labels'] = input_label_list
@@ -348,6 +375,12 @@ if __name__ == '__main__':
     # prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=200)
     # prompt_folder_with_mask('solar_finetune_mask', mask_magnitude=55, save_prompt=True, max_img=30)
 
+    # mask_folder = 'solar_masks'
+    # # mask_folder = 'solar_finetune_mask'
+    # prompt_folder_with_bbox(mask_folder)
+
+
+
     # Solar
     # prompt_folder_with_multiple_points(mode='iterative_10_points',
     #                                    num_point_prompt=10,
@@ -375,17 +408,17 @@ if __name__ == '__main__':
     #                                     choose_oracle=False)
 
     # DG road
-    prompt_folder_with_multiple_points(mode='iterative_10_points',
-                                        num_point_prompt=10,
-                                        max_img=999999, 
-                                        dataset='dg_road',
-                                        mask_folder='datasets/DG_road/train',
-                                        img_folder='datasets/DG_road/train',
-                                        img_postfix='sat.jpg',
-                                        mask_postfix='mask.png',
-                                        size_limit=0,
-                                        SAM_refine_feedback=True,
-                                        choose_oracle=True)
+    # prompt_folder_with_multiple_points(mode='iterative_10_points',
+    #                                     num_point_prompt=10,
+    #                                     max_img=999999, 
+    #                                     dataset='dg_road',
+    #                                     mask_folder='datasets/DG_road/train',
+    #                                     img_folder='datasets/DG_road/train',
+    #                                     img_postfix='sat.jpg',
+    #                                     mask_postfix='mask.png',
+    #                                     size_limit=0,
+    #                                     SAM_refine_feedback=True,
+    #                                     choose_oracle=True)
 
     # Cloud
     # prompt_folder_with_multiple_points(mode='iterative_10_points',
@@ -400,8 +433,19 @@ if __name__ == '__main__':
     #                                     SAM_refine_feedback=True,
     #                                     choose_oracle=False)
     
-    # mask_folder = 'solar_masks'
-    # # mask_folder = 'solar_finetune_mask'
-    # prompt_folder_with_bbox(mask_folder)
+
 
     
+    # TESTING RITM algorithm inference
+    prompt_folder_with_multiple_points(mode='iterative_10_points',
+                                       num_point_prompt=10,
+                                       max_img=50, 
+                                       dataset='solar_pv',
+                                       mask_folder='datasets/solar_masks',
+                                       img_folder='datasets/solar-pv',
+                                       img_postfix='tif',
+                                       mask_postfix='tif',
+                                       size_limit=0,
+                                       SAM_refine_feedback=True,
+                                       choose_oracle=True,
+                                       predictor_is_SAM=False)
