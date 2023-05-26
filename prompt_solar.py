@@ -381,6 +381,9 @@ if __name__ == '__main__':
 
 
 
+    ###############################################
+    # Multi point iterative prompting for SAM #####
+    ###############################################
     # Solar
     # prompt_folder_with_multiple_points(mode='iterative_10_points',
     #                                    num_point_prompt=10,
@@ -431,21 +434,79 @@ if __name__ == '__main__':
     #                                     mask_postfix='gt_',
     #                                     size_limit=50,
     #                                     SAM_refine_feedback=True,
-    #                                     choose_oracle=False)
+    #                                     choose_oracle=True)
+    
+    # DG_land use
+    for land_type in ['agriculture_land', 'water', 'urban_land']:
+        prompt_folder_with_multiple_points(mode='iterative_10_points',
+                                            num_point_prompt=10,
+                                            max_img=999999, 
+                                            dataset='dg_land_{}'.format(land_type),
+                                            mask_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type),
+                                            img_folder='datasets/DG_land/train',
+                                            img_postfix='sat.jpg',
+                                            mask_postfix='mask.png',
+                                            size_limit=0,
+                                            SAM_refine_feedback=True,
+                                            choose_oracle=False)
+
+    
+    ###############################################
+    # Multi point iterative prompting for RITM #####
+    ###############################################
+    # Solar
+    # prompt_folder_with_multiple_points(mode='iterative_10_points',
+    #                                    num_point_prompt=10,
+    #                                    max_img=999999, 
+    #                                    dataset='solar_pv',
+    #                                    mask_folder='datasets/solar_masks',
+    #                                    img_folder='datasets/solar-pv',
+    #                                    img_postfix='tif',
+    #                                    mask_postfix='tif',
+    #                                    size_limit=0,
+    #                                    SAM_refine_feedback=True,
+    #                                    choose_oracle=True,
+    #                                    predictor_is_SAM=False)
     
 
+    # inria_DG
+    # prompt_folder_with_multiple_points(mode='iterative_10_points',
+    #                                     num_point_prompt=10,
+    #                                     max_img=999999, 
+    #                                     dataset='inria_dg',
+    #                                     mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches',
+    #                                     img_folder='datasets/Combined_Inria_DeepGlobe_650/patches',
+    #                                     img_postfix='jpg',
+    #                                     mask_postfix='png',
+    #                                     size_limit=0,
+    #                                     SAM_refine_feedback=True,
+    #                                     choose_oracle=False,
+    #                                     predictor_is_SAM=False)
 
-    
-    # TESTING RITM algorithm inference
-    prompt_folder_with_multiple_points(mode='iterative_10_points',
-                                       num_point_prompt=10,
-                                       max_img=50, 
-                                       dataset='solar_pv',
-                                       mask_folder='datasets/solar_masks',
-                                       img_folder='datasets/solar-pv',
-                                       img_postfix='tif',
-                                       mask_postfix='tif',
-                                       size_limit=0,
-                                       SAM_refine_feedback=True,
-                                       choose_oracle=True,
-                                       predictor_is_SAM=False)
+    # DG road
+    # prompt_folder_with_multiple_points(mode='iterative_10_points',
+    #                                     num_point_prompt=10,
+    #                                     max_img=999999, 
+    #                                     dataset='dg_road',
+    #                                     mask_folder='datasets/DG_road/train',
+    #                                     img_folder='datasets/DG_road/train',
+    #                                     img_postfix='sat.jpg',
+    #                                     mask_postfix='mask.png',
+    #                                     size_limit=0,
+    #                                     SAM_refine_feedback=True,
+    #                                     choose_oracle=True,
+    #                                     predictor_is_SAM=False)
+
+    # Cloud
+    # prompt_folder_with_multiple_points(mode='iterative_10_points',
+    #                                     num_point_prompt=10,
+    #                                     max_img=999999, 
+    #                                     dataset='cloud',
+    #                                     mask_folder='datasets/cloud/train_processed',
+    #                                     img_folder='datasets/cloud/train_processed',
+    #                                     img_postfix='img_',
+    #                                     mask_postfix='gt_',
+    #                                     size_limit=50,
+    #                                     SAM_refine_feedback=True,
+    #                                     choose_oracle=False,
+    #                                     predictor_is_SAM=False)
