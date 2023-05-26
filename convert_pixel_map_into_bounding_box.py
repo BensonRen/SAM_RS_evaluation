@@ -13,6 +13,11 @@ from prompt_solar import show_box
 from multiprocessing import Pool
 
 
+from shapely.geometry.polygon import Polygon
+import shapely.wkt
+import rasterio.features
+
+
 from skimage.morphology import label
 def multi_rle_encode(img):
     labels = label(img[:, :, 0])
@@ -111,6 +116,31 @@ def extract_full_folder(mask_folder, file_list=None, save_df_file=None,
         save_df.to_csv(save_df_file)
     return save_df
 
+def extract_bbox_for_SpaceNet(save_df_file=None, ):
+    """
+    The function to extract bounding box for SpaceNet dataset that does not have a ground truth mask structure
+    but a .csv file with Shapely PolyGon instead
+    """
+    save_df = pd.DataFrame(columns=['img_name','prop_ind','bbox','centroid','area'])
+    shapefile = pd.read_csv('datasets/SpaceNet6/SummaryData/SN6_Train_AOI_11_Rotterdam_Buildings.csv')
+    for i in tqdm(range(len(shapefile))):
+        # Skip the empty images
+        if 'EMPTY' in shapefile['PolygonWKT_Pix'].values[i]:
+            continue;
+        plg = shapely.wkt.loads(shapefile['PolygonWKT_Pix'].values[i])
+        file = 'SN6_Train_AOI_11_Rotterdam_PS-RGB_{}.tif'.format(shapefile['ImageId'].values[i])
+        ind = shapefile['TileBuildingId'].values[i]
+        save_df.loc[len(save_df)] = [file, ind, np.array(plg.bounds).astype('int'), 
+                                         None, int(plg.area)]
+    if save_df_file:
+        save_df.to_csv(save_df_file)
+    return save_df
+        # x, y = plg.exterior.xy
+        # mask = rasterio.features.rasterize([plg], out_shape=img_size)
+        # indicator_mask_list.append(mask)
+
+
+
 def parallel_extract_full_folder(mask_folder, save_df_file):
     file_list = os.listdir(mask_folder) 
     num_cpu = 50
@@ -152,14 +182,14 @@ if __name__ == '__main__':
     #####
     # The DG_land dataset
     #####
-    DG_land_type_list = ['urban_land', 'water' ,'agriculture_land' ]
-    for DG_land_type in DG_land_type_list:
-        # DG_land_type = 'urban_land' # 'water' #  'agriculture_land' 
-        dataset = 'DG_land_{}'.format(DG_land_type)
-        mask_folder = 'datasets/DG_land/diff_train_masks/{}'.format(DG_land_type) 
+    # DG_land_type_list = ['urban_land', 'water' ,'agriculture_land' ]
+    # for DG_land_type in DG_land_type_list:
+    #     # DG_land_type = 'urban_land' # 'water' #  'agriculture_land' 
+    #     dataset = 'DG_land_{}'.format(DG_land_type)
+    #     mask_folder = 'datasets/DG_land/diff_train_masks/{}'.format(DG_land_type) 
 
-        parallel_extract_full_folder(mask_folder=mask_folder, 
-                            save_df_file=os.path.join(mask_folder, 'bbox.csv'))
+    #     parallel_extract_full_folder(mask_folder=mask_folder, 
+    #                         save_df_file=os.path.join(mask_folder, 'bbox.csv'))
 
     # Sequential version
     # extract_full_folder(mask_folder=mask_folder, 
@@ -168,3 +198,6 @@ if __name__ == '__main__':
     # Parallel version
     # parallel_extract_full_folder(mask_folder=mask_folder, 
     #                     save_df_file=os.path.join(mask_folder, 'bbox.csv'))
+
+    # For SpaceNet
+    extract_bbox_for_SpaceNet(save_df_file='datasets/SpaceNet6/SummaryData/bbox.csv')
