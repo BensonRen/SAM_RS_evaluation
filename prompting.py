@@ -199,11 +199,7 @@ def prompt_folder_with_bbox(mask_folder,
     # Loop over all the keys inside the prompt_point_dict
     for ind, row in tqdm(df.iterrows(), total=df.shape[0]):
         # Get image path
-        if 'SpaceNet6' not in img_folder:
-            img_path = os.path.join(img_folder, row['img_name'])
-        else:       # SpaceNet6 dataset need a little special operation
-            img_path = os.path.join(img_folder, 
-                                    'SN6_Train_AOI_11_Rotterdam_PS-RGB_{}.tif'.format(row['img_name']))
+        img_path = os.path.join(img_folder, row['img_name'])
         # Make sure this image exist
         if not os.path.exists(img_path):
             print('Warning!!! {} does not exist, bypassing now'.format(img_path))
