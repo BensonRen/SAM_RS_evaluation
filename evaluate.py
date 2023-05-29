@@ -29,7 +29,7 @@ def get_IOU_from_gt_mask_point_prompt(gt_file, dataset,
         prompt_mask_folder = 'SAM_output/{}_{}_prompt_save'.format(dataset, mode)
     # Read the gt mask
     gt_mask = cv2.imread(os.path.join(gt_folder, gt_file))
-    prompt_list = prompt_point_dict[gt_file]
+    # prompt_list = prompt_point_dict[gt_file]
     # Process the gt mask 
     output = cv2.connectedComponentsWithStats(
 	        gt_mask[:, :, 0], 4)
@@ -48,7 +48,7 @@ def get_IOU_from_gt_mask_point_prompt(gt_file, dataset,
         # First identify background
         if  num_pixel == 0:
             continue
-        mask_file = all_files[gt_file.replace(mask_postfix,'')][str(i)][str(point_num)]
+        mask_file = all_files[gt_file.split('.')[0]][str(i)][str(point_num)]
         cur_mask = cv2.imread(os.path.join(prompt_mask_folder, mask_file))    # Load the SAM-prompted mask
         cur_mask = np.swapaxes(cur_mask, 0, 2) > 0  # swapeed axes during saving so swap back
         _, _, conf_list = read_info_from_prmopt_mask_file(mask_file)
@@ -80,7 +80,8 @@ def process_multiple_gt_mask(prompt_mask_folder,
                             file_list=None,
                             gt_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches',
                             mask_postfix='.png', 
-                             pixel_IOU_mode=False):
+                             pixel_IOU_mode=False,
+                             point_num=0):
     # Setup the save_df
     if pixel_IOU_mode:
         save_df = pd.DataFrame(columns=['img_name', 'max_IOU_num_pixel_intersection', 
@@ -94,14 +95,19 @@ def process_multiple_gt_mask(prompt_mask_folder,
     prepare_mask_folder(prompt_mask_folder)
     prompt_point_dict = get_prompt_dict(mode=mode, dataset=dataset, 
                                         prompt_mask_folder=prompt_mask_folder)
+    # print(prompt_point_dict)
     if file_list is None:
         all_files = [file for file in os.listdir(gt_folder) if mask_postfix in file and file in prompt_point_dict] # .png is for inria_DG
     else:
         all_files = file_list
     for file in tqdm(all_files):
         get_IOU_from_gt_mask_point_prompt(file, dataset, prompt_point_dict, save_df, 
-                                          prompt_mask_folder=prompt_mask_folder,
-                                            mode=mode, pixel_IOU_mode=pixel_IOU_mode)
+                                            prompt_mask_folder=prompt_mask_folder,
+                                            mode=mode, 
+                                            pixel_IOU_mode=pixel_IOU_mode,
+                                            mask_postfix=mask_postfix,
+                                            gt_folder=gt_folder,
+                                            point_num=point_num)
     if file_list is None: # Then this is not parallel mode
         save_df.to_csv('{}_{}_{}_wise_IOU.csv'.format( dataset, mode, 
                 'pixel' if pixel_IOU_mode else 'object'))
@@ -136,14 +142,15 @@ def prepare_mask_folder(prompt_mask_folder, savename='files_dict.pickle'):
 def parallel_multiple_gt_mask(prompt_mask_folder, mode,  dataset, 
                             gt_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches',
                             mask_postfix='.png', 
-                            pixel_IOU_mode=False):
+                            pixel_IOU_mode=False,
+                            point_num=0):
     """
     Parallelism of the ground truth prompting
     """
     prepare_mask_folder(prompt_mask_folder)
     prompt_point_dict = get_prompt_dict(mode=mode, dataset=dataset, 
                                         prompt_mask_folder=prompt_mask_folder)
-    all_files = [file for file in os.listdir(gt_folder) if mask_postfix in file and file in prompt_point_dict] # .png is for inria_DG
+    all_files = [file for file in os.listdir(gt_folder) if mask_postfix in file and file in prompt_point_dict]
     num_cpu = 50
     try: 
         pool = Pool(num_cpu)
@@ -155,13 +162,14 @@ def parallel_multiple_gt_mask(prompt_mask_folder, mode,  dataset,
                             all_files[i::num_cpu], 
                             gt_folder,
                             mask_postfix, 
-                            pixel_IOU_mode))
+                            pixel_IOU_mode,
+                            point_num))
         output_dfs = pool.starmap(process_multiple_gt_mask, args_list)
     finally:
         pool.close()
         pool.join()
     combined_df = pd.concat(output_dfs)
-    combined_df.to_csv('{}_{}_{}_wise_IOU.csv'.format( dataset, mode, 
+    combined_df.to_csv('{}_{}_point_{}_{}_wise_IOU.csv'.format( dataset, mode, point_num,
                     'pixel' if pixel_IOU_mode else 'object'))
 
 def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, dataset,
@@ -258,19 +266,20 @@ if __name__ == '__main__':
     size_limit=0
 
     # Solar
-    # dataset='solar_pv'
-    # mask_folder='datasets/solar_masks'
-    # img_folder='datasets/solar-pv'
-    # img_postfix='tif'
-    # mask_postfix='tif'
+    dataset='solar_pv'
+    mask_folder='datasets/solar_masks'
+    img_folder='datasets/solar-pv'
+    img_postfix='tif'
+    mask_postfix='tif'
+    choose_oracle=False
 
     # inria_DG
-    dataset='inria_dg'
-    mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
-    img_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
-    img_postfix='jpg'
-    mask_postfix='png'
-    choose_oracle=False
+    # dataset='inria_dg'
+    # mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
+    # img_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
+    # img_postfix='jpg'
+    # mask_postfix='png'
+    # choose_oracle=False
 
     # DG road
     # dataset='dg_road'
@@ -301,9 +310,12 @@ if __name__ == '__main__':
                                                                         choose_oracle)
 
     parallel_multiple_gt_mask(prompt_mask_folder=prompt_mask_folder,
-                             gt_folder=mask_folder,
                              mode=mode,
-                             dataset=dataset)
+                             dataset=dataset,
+                             gt_folder=mask_folder,
+                             mask_postfix=mask_postfix,
+                             pixel_IOU_mode=True,
+                             point_num=9)
     
     # Serial processing
     # process_multiple_gt_mask(mode='center')
