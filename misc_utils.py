@@ -118,13 +118,19 @@ def get_IoU_for_3masks(gt_mask, pred_3masks):
         IoU_list[i], _ , _ = IoU_single_object_mask(gt_mask, pred_3masks[i, :, :])
     return IoU_list
 
-def get_most_inner_point_from_a_binary_map(input_mask):
+def get_most_inner_point_from_a_binary_map(input_mask, random_flag):
     """
     The function that finds the most inner point of a binary map
     The most "inner point" is defined as the furthest distance to the 0 (background) pixel of target value-1 pixels
     Ref from RITM https://github.com/SamsungLabs/ritm_interactive_segmentation/blob/aa3bb52a77129e477599b5edfd041535bc67b259/isegm/data/points_sampler.py
     and https://github.com/mazurowski-lab/segment-anything-medical-evaluation/blob/main/prompt_gen_and_exec_v1.py#LL339C17-L339C17
+    :param random_flag: A binary flag signifying whether this is random mode or not, if True then return the list of all 1
+    The random selection would be later in the selection of a single point from cX and cY (they are lists)
     """
+    if random_flag:
+        cY, cX = np.where(input_mask==1)
+        return cY, cX
+
     input_mask = np.uint8(input_mask)
     # First lets pad the input mask, so that the edge can get accounted for
     padded_mask = np.pad(input_mask, ((1, 1), (1, 1)), 'constant')

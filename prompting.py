@@ -32,7 +32,10 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
          save_mask_path = 'RITM_{}_{}_prompt_save_numpoint_{}_oracle'.format(dataset, 
                                                                         mode, 
                                                                         num_point_prompt)
-         
+    
+    # Set the random flag by the mode name
+    random_flag = True if 'random' in mode.lower() else False
+
     if not os.path.isdir(save_mask_path):
         os.makedirs(save_mask_path)
 
@@ -100,15 +103,18 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
             for j in range(num_point_prompt):
                 save_mask_prefix = mask_name.split('.')[0] + '_prompt_ind_{}_point_num_{}'.format(i, j)
                 if j == 0:  # The first prompt is special, because it does not have 
-                    cY, cX = get_most_inner_point_from_a_binary_map(indicator_mask)
+                    cY, cX = get_most_inner_point_from_a_binary_map(indicator_mask, random_flag)
                 else: # The iterative experience where each time get a point from 
                     error_mask = np.uint8(np.bitwise_xor(indicator_mask, 
                                                          last_prediction_mask))
-                    cY, cX = get_most_inner_point_from_a_binary_map(error_mask)
+                    cY, cX = get_most_inner_point_from_a_binary_map(error_mask, random_flag)
                 
                 # There might be more than one single point have furthest distance to background, randomly chose one
-                random_idx = np.random.randint(0, len(cX))
-                cX, cY = int(cX[random_idx]), int(cY[random_idx])
+                if len(cX) == 0:    # Edge case, when SAM/RITM gets current object PERFECTLY!
+                    cX, cY = 0, 0
+                else:
+                    random_idx = np.random.randint(0, len(cX))
+                    cX, cY = int(cX[random_idx]), int(cY[random_idx])
 
                 #########################
                 # The SAM way of things #
@@ -254,7 +260,8 @@ if __name__ == '__main__':
     # Multi point iterative prompting for SAM #####
     ###############################################
     # Shared parameters
-    mode='iterative_10_points'
+    # mode='iterative_10_points'
+    mode='iterative_10_points_random'
     num_point_prompt=10
     max_img=999999
     size_limit=0
@@ -266,7 +273,7 @@ if __name__ == '__main__':
     # img_folder='datasets/solar-pv'
     # img_postfix='tif'
     # mask_postfix='tif'
-    # choose_oracle=True
+    # choose_oracle=False
 
     # inria_DG
     # dataset='inria_dg'
@@ -274,7 +281,7 @@ if __name__ == '__main__':
     # img_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
     # img_postfix='jpg'
     # mask_postfix='png'
-    # choose_oracle=True
+    # choose_oracle=False
 
     # DG road
     # dataset='dg_road'
@@ -282,7 +289,7 @@ if __name__ == '__main__':
     # img_folder='datasets/DG_road/train'
     # img_postfix='sat.jpg'
     # mask_postfix='mask.png'
-    # choose_oracle=True
+    # choose_oracle=False
 
     # Cloud
     # dataset='cloud'
@@ -300,29 +307,29 @@ if __name__ == '__main__':
     #     img_folder='datasets/DG_land/train'
     #     img_postfix='sat.jpg'
     #     mask_postfix='mask.png'
-    #     choose_oracle=True
+    #     choose_oracle=False
 
     # SpaceNet (True instance segmentation)
     dataset='SpaceNet'
-    mask_folder='datasets/SpaceNet6/SummaryData'
+    mask_folder='datasets/SpaceNet6/PS-RGB' # There is no actual mask folder
     img_folder='datasets/SpaceNet6/PS-RGB'
     img_postfix='.tif'
     mask_postfix='.tif'
     size_limit=0
     choose_oracle=False
     
-    # prompt_folder_with_multiple_points(mode=mode,
-    #                                 num_point_prompt=num_point_prompt,
-    #                                 max_img=max_img, 
-    #                                 dataset=dataset,
-    #                                 mask_folder=mask_folder,
-    #                                 img_folder=img_folder,
-    #                                 img_postfix=img_postfix,
-    #                                 mask_postfix=mask_postfix,
-    #                                 size_limit=size_limit,
-    #                                 SAM_refine_feedback=SAM_refine_feedback,
-    #                                 choose_oracle=choose_oracle,
-    #                                 predictor_is_SAM=True)
+    prompt_folder_with_multiple_points(mode=mode,
+                                    num_point_prompt=num_point_prompt,
+                                    max_img=max_img, 
+                                    dataset=dataset,
+                                    mask_folder=mask_folder,
+                                    img_folder=img_folder,
+                                    img_postfix=img_postfix,
+                                    mask_postfix=mask_postfix,
+                                    size_limit=size_limit,
+                                    SAM_refine_feedback=SAM_refine_feedback,
+                                    choose_oracle=choose_oracle,
+                                    predictor_is_SAM=True)
     
     ###############################################
     # Multi point iterative prompting for RITM #####
@@ -343,6 +350,6 @@ if __name__ == '__main__':
     ###############################################
     # BBox prompt #####
     ###############################################
-    prompt_folder_with_bbox(mask_folder=mask_folder, 
-                            dataset=dataset,
-                            img_folder = img_folder)
+    # prompt_folder_with_bbox(mask_folder=mask_folder, 
+    #                         dataset=dataset,
+    #                         img_folder = img_folder)
