@@ -51,8 +51,11 @@ def get_IOU_from_gt_mask_point_prompt(gt_file, dataset,
         mask_file = all_files[gt_file.split('.')[0]][str(i)][str(point_num)]
         cur_mask = cv2.imread(os.path.join(prompt_mask_folder, mask_file))    # Load the SAM-prompted mask
         cur_mask = np.swapaxes(cur_mask, 0, 2) > 0  # swapeed axes during saving so swap back
-        _, _, conf_list = read_info_from_prmopt_mask_file(mask_file)
         cur_gt_mask = labels == i
+        if 'RITM' in prompt_mask_folder: # This is RITM case
+            conf_list = [0,0,0]
+        else:   # SAM would read the confidence from the mask file name
+            _, _, conf_list = read_info_from_prmopt_mask_file(mask_file)
         IoU_list = get_IoU_for_3masks(cur_gt_mask, cur_mask)
         if not pixel_IOU_mode:
             save_df.loc[len(save_df)] = [gt_file, i, *conf_list, *IoU_list, num_pixel]
@@ -133,17 +136,19 @@ def prepare_mask_folder(prompt_mask_folder, savename='files_dict.pickle'):
         prompt_ind = file.split('_prompt_ind_')[1].split('_point_num_')[0]
         if prompt_ind not in all_files[img_name]:
             all_files[img_name][prompt_ind] = {}
-        point_num = file.split('point_num_')[1].split('_')[0]
+        point_num = file.split('point_num_')[1].split('_')[0].split('.')[0]     # split _ for SAM output, . for RTIM
         all_files[img_name][prompt_ind][point_num] = file
     with open(os.path.join(prompt_mask_folder, savename ),'wb') as handle:
         pickle.dump(all_files, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return 
 
-def parallel_multiple_gt_mask(prompt_mask_folder, mode,  dataset, 
+def parallel_multiple_gt_mask(prompt_mask_folder, mode,  dataset, choose_oracle,
                             gt_folder = 'datasets/Combined_Inria_DeepGlobe_650/patches',
                             mask_postfix='.png', 
                             pixel_IOU_mode=False,
-                            point_num=0):
+                            point_num=0,
+                            num_cpu = 50,
+                            SAM_prompt=True):
     """
     Parallelism of the ground truth prompting
     """
@@ -151,7 +156,6 @@ def parallel_multiple_gt_mask(prompt_mask_folder, mode,  dataset,
     prompt_point_dict = get_prompt_dict(mode=mode, dataset=dataset, 
                                         prompt_mask_folder=prompt_mask_folder)
     all_files = [file for file in os.listdir(gt_folder) if mask_postfix in file and file in prompt_point_dict]
-    num_cpu = 50
     try: 
         pool = Pool(num_cpu)
         args_list = []
@@ -169,8 +173,12 @@ def parallel_multiple_gt_mask(prompt_mask_folder, mode,  dataset,
         pool.close()
         pool.join()
     combined_df = pd.concat(output_dfs)
-    combined_df.to_csv('{}_{}_point_{}_{}_wise_IOU.csv'.format( dataset, mode, point_num,
-                    'pixel' if pixel_IOU_mode else 'object'))
+    if SAM_prompt:
+        combined_df.to_csv('{}_{}_point_{}_{}_wise_IOU_oracle_{}.csv'.format( dataset, mode, point_num,
+                        'pixel' if pixel_IOU_mode else 'object', choose_oracle))
+    else:   # This is RITM case
+        combined_df.to_csv('RITM_{}_{}_point_{}_{}_wise_IOU_oracle.csv'.format(dataset, mode, point_num,
+                        'pixel' if pixel_IOU_mode else 'object'))
 
 def get_pixel_IOU_from_bbox_prompt_from_bboxcsv(mask_folder, dataset,
                                                 file_list=None, 
@@ -264,6 +272,7 @@ if __name__ == '__main__':
     mode='iterative_10_points'
     num_point_prompt=10
     size_limit=0
+    num_cpu = 30
 
     # Solar
     dataset='solar_pv'
@@ -271,7 +280,7 @@ if __name__ == '__main__':
     img_folder='datasets/solar-pv'
     img_postfix='tif'
     mask_postfix='tif'
-    choose_oracle=False
+    choose_oracle=True
 
     # inria_DG
     # dataset='inria_dg'
@@ -303,20 +312,48 @@ if __name__ == '__main__':
     #     img_folder='datasets/DG_land/train'
     #     img_postfix='sat.jpg'
     #     mask_postfix='mask.png'
-
-    prompt_mask_folder = 'SAM_output/{}_{}_prompt_save_numpoint_{}_oracle_{}'.format(dataset, 
-                                                                        mode, 
-                                                                        num_point_prompt,
-                                                                        choose_oracle)
-
-    parallel_multiple_gt_mask(prompt_mask_folder=prompt_mask_folder,
-                             mode=mode,
-                             dataset=dataset,
-                             gt_folder=mask_folder,
-                             mask_postfix=mask_postfix,
-                             pixel_IOU_mode=True,
-                             point_num=9)
     
+    ##########################
+    # Evaluation of the SAM #
+    ##########################
+    # for mode in ['iterative_10_points','iterative_10_points_random']:
+    #     for choose_oracle in [True, False]:
+    #         prompt_mask_folder = 'SAM_output/{}_{}_prompt_save_numpoint_{}_oracle_{}'.format(dataset, 
+    #                                                                         mode, 
+    #                                                                         num_point_prompt,
+    #                                                                         choose_oracle)
+    #         for pixel_IOU_mode in [True, False]:
+    #             for i in range(10):
+    #                 parallel_multiple_gt_mask(prompt_mask_folder=prompt_mask_folder,
+    #                                         mode=mode,
+    #                                         dataset=dataset,
+    #                                         choose_oracle=choose_oracle,
+    #                                         gt_folder=mask_folder,
+    #                                         mask_postfix=mask_postfix,
+    #                                         pixel_IOU_mode=pixel_IOU_mode,
+    #                                         point_num=i,
+    #                                         num_cpu=num_cpu,
+    #                                          SAM_prompt=True)
+    
+    ##########################
+    # Evaluation of the RITM #
+    ##########################
+    prompt_mask_folder = 'RITM_{}_{}_prompt_save_numpoint_{}_oracle'.format(dataset, 
+                                                                        mode, 
+                                                                        num_point_prompt)
+    for pixel_IOU_mode in [True, False]:
+        for i in range(10):
+            parallel_multiple_gt_mask(prompt_mask_folder=prompt_mask_folder,
+                                    mode=mode,
+                                    dataset=dataset,
+                                    choose_oracle=choose_oracle,
+                                    gt_folder=mask_folder,
+                                    mask_postfix=mask_postfix,
+                                    pixel_IOU_mode=pixel_IOU_mode,
+                                    point_num=i,
+                                    num_cpu=num_cpu,
+                                    SAM_prompt=False)
+
     # Serial processing
     # process_multiple_gt_mask(mode='center')
     # process_multiple_gt_mask(mode='random')

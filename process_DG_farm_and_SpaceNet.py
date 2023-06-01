@@ -6,6 +6,11 @@ import pandas as pd
 from multiprocessing import Pool
 import shutil
 
+# For SpaceNet shapely operations and rastering the shapefile
+from shapely.geometry.polygon import Polygon
+import shapely.wkt
+import rasterio.features
+
 def get_class_label_dict(img_len=2448):
     """
     get from class label
@@ -50,7 +55,7 @@ def get_new_mask_folder(label_dict,
         # print(pixel_count)
         # quit()
 
-def parallel_get_new_mask():
+def parallel_get_new_mask_DG_land():
     class_dict = get_class_label_dict()
     folder = '/home/sr365/SAM/datasets/DG_land/train'
     src_folder='/home/sr365/SAM/datasets/DG_land/train',
@@ -70,5 +75,46 @@ def parallel_get_new_mask():
         pool.close()
         pool.join()
 
+def parallelize_spacenet():
+    shapefile = pd.read_csv('datasets/SpaceNet6/SummaryData/SN6_Train_AOI_11_Rotterdam_Buildings.csv')
+    index_full = np.arange(len(shapefile))
+    num_cpu = 50
+    try: 
+        pool = Pool(num_cpu)
+        args_list = []
+        for i in range(num_cpu):
+            input_indexs = list(index_full[i::num_cpu])
+            args_list.append((input_indexs,))
+        output_dfs = pool.starmap(Process_SpaceNet, args_list)
+    finally:
+        pool.close()
+        pool.join()
+
+def Process_SpaceNet(list_of_index, 
+                     img_folder='datasets/SpaceNet6/PS-RGB',
+                     save_folder='datasets/SpaceNet6/masks'):
+    """
+    Get the number of objects for current image
+    """
+    shapefile = pd.read_csv('datasets/SpaceNet6/SummaryData/SN6_Train_AOI_11_Rotterdam_Buildings.csv')
+    sub_file = shapefile.iloc[list_of_index, :]
+    for i in tqdm(range(len(sub_file))):
+        # Get the image id and subsequently image name
+        img_id = sub_file['ImageId'].values[i]
+        if 'EMPTY' in sub_file['PolygonWKT_Pix'].values[i]:
+            continue
+        img_name = 'SN6_Train_AOI_11_Rotterdam_PS-RGB_{}.tif'.format(img_id)
+        # Read image and get shape
+        img = cv2.imread(os.path.join(img_folder, img_name))
+        img_size = np.shape(img)[:2]
+        plg = shapely.wkt.loads(sub_file['PolygonWKT_Pix'].values[i])
+        x, y = plg.exterior.xy
+        mask = rasterio.features.rasterize([plg], out_shape=img_size) * 255
+        name = os.path.join(save_folder, 
+                            img_name.replace('.', '_ObjId_{}.'.format(sub_file['TileBuildingId'].values[i])))
+        cv2.imwrite(name, cv2.merge((mask,mask,mask)))    # Save the three channeel image
+
 if __name__ == '__main__':
-    parallel_get_new_mask()
+    # parallel_get_new_mask_DG_land()
+    parallelize_spacenet()
+    

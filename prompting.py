@@ -21,7 +21,22 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
                                        size_limit=0,
                                        SAM_refine_feedback=True,
                                        choose_oracle=False,
-                                       predictor_is_SAM=True):
+                                       predictor_is_SAM=True,
+                                       parallel_number=None,
+                                       parallel_index=None):
+    """
+    The master function for prompting
+
+    Parallel setting note: This function itself is NOT parallelized, but the setting would cut the target imgs to run
+                            into pieces so one can run a bunch of them outside this function to reach parallism
+    :param parallel_number: The total number of parallel programs to run at the same time
+                            If this is set to None, then running in a non-parallel way
+    :param parallel_index: This is the i-th instance of the parallel run
+    """
+    # Assert the parallel setting
+    if parallel_number is not None:
+        assert parallel_index is not None, 'Your parallel setting is wrong, check parallel related parameter input'
+
     # Set up the saving place
     if predictor_is_SAM:
         save_mask_path = '{}_{}_prompt_save_numpoint_{}_oracle_{}'.format(dataset, 
@@ -40,6 +55,11 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
         os.makedirs(save_mask_path)
 
     mask_name_list = [file for file in os.listdir(mask_folder) if mask_postfix in file]
+
+    if parallel_number is not None:
+        mask_name_list = mask_name_list[parallel_index::parallel_number]
+        print('PARALLEL MODE ON! doing {} of them in total this is {}'.format(parallel_number, parallel_index))
+    print('reading files from {}, matching name {} has {}'.format(mask_folder, mask_postfix, len(mask_name_list)))
     
     # Load predictor
     predictor = load_predictor(predictor_is_SAM)
@@ -175,11 +195,13 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
                 break
 
     # Save the whole dictionary down
-    with open(os.path.join(save_mask_path, 
+    save_name = os.path.join(save_mask_path, 
                         '{}_{}_choose_oracle_{}_iterative_prompt.pickle'.format(dataset, 
                                                                                 num_point_prompt, 
-                                                                                choose_oracle)), 
-                           'wb') as handle:
+                                                                                choose_oracle))
+    if parallel_number is not None:         # For parallel running, change the saving filename
+        save_name = save_name.replace('.','_par_{}_ind_{}.'.format(parallel_number, parallel_index))
+    with open(save_name, 'wb') as handle:
                 pickle.dump(prompt_point_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def prompt_folder_with_bbox(mask_folder, 
@@ -260,8 +282,8 @@ if __name__ == '__main__':
     # Multi point iterative prompting for SAM #####
     ###############################################
     # Shared parameters
-    # mode='iterative_10_points'
-    mode='iterative_10_points_random'
+    mode='iterative_10_points'
+    # mode='iterative_10_points_random'
     num_point_prompt=10
     max_img=999999
     size_limit=0
@@ -299,37 +321,46 @@ if __name__ == '__main__':
     # mask_postfix='gt_'
     # size_limit=50
     # choose_oracle=True
+
+    # Crop
+    # dataset='crop'
+    # img_folder ='datasets/crop/imgs'
+    # mask_folder = 'datasets/crop/masks_filled'
+    # img_postfix='.jpeg'
+    # mask_postfix='.png'
+    # size_limit=0
+    # choose_oracle=False
     
     # DG_land use
-    # for land_type in ['agriculture_land', 'water', 'urban_land']:
-    #     dataset='dg_land_{}'.format(land_type)
-    #     mask_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
-    #     img_folder='datasets/DG_land/train'
-    #     img_postfix='sat.jpg'
-    #     mask_postfix='mask.png'
-    #     choose_oracle=False
+    for land_type in [ 'water', 'urban_land','agriculture_land',]:
+        dataset='dg_land_{}'.format(land_type)
+        mask_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
+        img_folder='datasets/DG_land/train'
+        img_postfix='sat.jpg'
+        mask_postfix='mask.png'
+        choose_oracle=True
 
     # SpaceNet (True instance segmentation)
-    dataset='SpaceNet'
-    mask_folder='datasets/SpaceNet6/PS-RGB' # There is no actual mask folder
-    img_folder='datasets/SpaceNet6/PS-RGB'
-    img_postfix='.tif'
-    mask_postfix='.tif'
-    size_limit=0
-    choose_oracle=False
+    # dataset='SpaceNet'
+    # mask_folder='datasets/SpaceNet6/PS-RGB' # There is no actual mask folder
+    # img_folder='datasets/SpaceNet6/PS-RGB'
+    # img_postfix='.tif'
+    # mask_postfix='.tif'
+    # size_limit=0
+    # choose_oracle=False
     
-    prompt_folder_with_multiple_points(mode=mode,
-                                    num_point_prompt=num_point_prompt,
-                                    max_img=max_img, 
-                                    dataset=dataset,
-                                    mask_folder=mask_folder,
-                                    img_folder=img_folder,
-                                    img_postfix=img_postfix,
-                                    mask_postfix=mask_postfix,
-                                    size_limit=size_limit,
-                                    SAM_refine_feedback=SAM_refine_feedback,
-                                    choose_oracle=choose_oracle,
-                                    predictor_is_SAM=True)
+    # prompt_folder_with_multiple_points(mode=mode,
+    #                                 num_point_prompt=num_point_prompt,
+    #                                 max_img=max_img, 
+    #                                 dataset=dataset,
+    #                                 mask_folder=mask_folder,
+    #                                 img_folder=img_folder,
+    #                                 img_postfix=img_postfix,
+    #                                 mask_postfix=mask_postfix,
+    #                                 size_limit=size_limit,
+    #                                 SAM_refine_feedback=SAM_refine_feedback,
+    #                                 choose_oracle=choose_oracle,
+    #                                 predictor_is_SAM=True)
     
     ###############################################
     # Multi point iterative prompting for RITM #####
@@ -346,6 +377,25 @@ if __name__ == '__main__':
     #                                    SAM_refine_feedback=SAM_refine_feedback,
     #                                    choose_oracle=choose_oracle,
     #                                    predictor_is_SAM=False)
+    
+
+    #############################################################################################
+    # Multi point iterative prompting for RITM with parallelism beacuse it is super slow... #####
+    #############################################################################################
+        prompt_folder_with_multiple_points(mode=mode,
+                                       num_point_prompt=num_point_prompt,
+                                       max_img=max_img, 
+                                       dataset=dataset,
+                                       mask_folder=mask_folder,
+                                       img_folder=img_folder,
+                                       img_postfix=img_postfix,
+                                       mask_postfix=mask_postfix,
+                                       size_limit=size_limit,
+                                       SAM_refine_feedback=SAM_refine_feedback,
+                                       choose_oracle=choose_oracle,
+                                       predictor_is_SAM=False,
+                                       parallel_number=5,
+                                       parallel_index=4)
 
     ###############################################
     # BBox prompt #####
