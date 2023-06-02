@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import os
 from tqdm import tqdm
 import pickle
-from show_img import *
 import glob
+from misc_utils import *
 from multiprocessing import Pool
 import shutil
 

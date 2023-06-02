@@ -23,7 +23,8 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
                                        choose_oracle=False,
                                        predictor_is_SAM=True,
                                        parallel_number=None,
-                                       parallel_index=None):
+                                       parallel_index=None,
+                                       skip_done=True):
     """
     The master function for prompting
 
@@ -32,6 +33,7 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
     :param parallel_number: The total number of parallel programs to run at the same time
                             If this is set to None, then running in a non-parallel way
     :param parallel_index: This is the i-th instance of the parallel run
+    :param skip_done: Check using files_dict.pickle to make sure it has not been done before
     """
     # Assert the parallel setting
     if parallel_number is not None:
@@ -48,6 +50,15 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
                                                                         mode, 
                                                                         num_point_prompt)
     
+     # Read in the files pickle to get the current finished file dictionary
+    if skip_done:
+        done_dict_file = os.path.join(save_mask_path, 'files_dict.pickle' )
+        if not os.path.exists(done_dict_file):
+            done_dict = None
+        else:
+            with open(done_dict_file,'rb') as handle:   # Read only once all the files dictionary
+                done_dict = pickle.load(handle)
+
     # Set the random flag by the mode name
     random_flag = True if 'random' in mode.lower() else False
 
@@ -69,6 +80,9 @@ def prompt_folder_with_multiple_points(mode, num_point_prompt, max_img=999999,
 
     # Loop over all the keys inside the prompt_point_dict
     for mask_name in tqdm(mask_name_list):
+        if done_dict is not None: # If this image has appeared once, just ignore all of them
+            if mask_name.split('.')[0] in done_dict:
+                continue 
         cur_img_prompt_point = {}
         # Get image path
         img_path = os.path.join(img_folder, mask_name.replace(mask_postfix, img_postfix))
@@ -298,12 +312,12 @@ if __name__ == '__main__':
     # choose_oracle=False
 
     # inria_DG
-    # dataset='inria_dg'
-    # mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
-    # img_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
-    # img_postfix='jpg'
-    # mask_postfix='png'
-    # choose_oracle=False
+    dataset='inria_dg'
+    mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
+    img_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
+    img_postfix='jpg'
+    mask_postfix='png'
+    choose_oracle=False
 
     # DG road
     # dataset='dg_road'
@@ -329,16 +343,16 @@ if __name__ == '__main__':
     # img_postfix='.jpeg'
     # mask_postfix='.png'
     # size_limit=0
-    # choose_oracle=False
+    # choose_oracle=True
     
     # DG_land use
-    for land_type in [ 'water', 'urban_land','agriculture_land',]:
-        dataset='dg_land_{}'.format(land_type)
-        mask_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
-        img_folder='datasets/DG_land/train'
-        img_postfix='sat.jpg'
-        mask_postfix='mask.png'
-        choose_oracle=True
+    # for land_type in [ 'water', 'urban_land','agriculture_land',]:
+    #     dataset='dg_land_{}'.format(land_type)
+    #     mask_folder='datasets/DG_land/diff_train_masks/{}'.format(land_type)
+    #     img_folder='datasets/DG_land/train'
+    #     img_postfix='sat.jpg'
+    #     mask_postfix='mask.png'
+    #     choose_oracle=True
 
     # SpaceNet (True instance segmentation)
     # dataset='SpaceNet'
@@ -349,6 +363,24 @@ if __name__ == '__main__':
     # size_limit=0
     # choose_oracle=False
     
+    # Inria_dg_scaled 
+    # scale = 8 # scale in [2, 4, 8]:
+    # dataset='scaled_{}x_inria_dg'.format(scale)
+    # img_folder='datasets/inria_dg_scaled/{}x_upscaled/imgs'.format(scale)
+    # mask_folder='datasets/inria_dg_scaled/{}x_upscaled/gt'.format(scale)
+    # img_postfix='jpg'
+    # mask_postfix='png'
+    # choose_oracle=True
+
+    # DG road scaled
+    # scale = 8 # scale in [2, 4, 8]:
+    # dataset='scaled_{}x_dg_road'.format(scale)
+    # img_folder='datasets/dg_road_scaled/{}x_upscaled/imgs'.format(scale)
+    # mask_folder='datasets/dg_road_scaled/{}x_upscaled/gt'.format(scale)
+    # img_postfix='sat.jpg'
+    # mask_postfix='mask.png'
+    # choose_oracle=True
+
     # prompt_folder_with_multiple_points(mode=mode,
     #                                 num_point_prompt=num_point_prompt,
     #                                 max_img=max_img, 
@@ -382,20 +414,20 @@ if __name__ == '__main__':
     #############################################################################################
     # Multi point iterative prompting for RITM with parallelism beacuse it is super slow... #####
     #############################################################################################
-        prompt_folder_with_multiple_points(mode=mode,
-                                       num_point_prompt=num_point_prompt,
-                                       max_img=max_img, 
-                                       dataset=dataset,
-                                       mask_folder=mask_folder,
-                                       img_folder=img_folder,
-                                       img_postfix=img_postfix,
-                                       mask_postfix=mask_postfix,
-                                       size_limit=size_limit,
-                                       SAM_refine_feedback=SAM_refine_feedback,
-                                       choose_oracle=choose_oracle,
-                                       predictor_is_SAM=False,
-                                       parallel_number=5,
-                                       parallel_index=4)
+    prompt_folder_with_multiple_points(mode=mode,
+                                    num_point_prompt=num_point_prompt,
+                                    max_img=max_img, 
+                                    dataset=dataset,
+                                    mask_folder=mask_folder,
+                                    img_folder=img_folder,
+                                    img_postfix=img_postfix,
+                                    mask_postfix=mask_postfix,
+                                    size_limit=size_limit,
+                                    SAM_refine_feedback=SAM_refine_feedback,
+                                    choose_oracle=choose_oracle,
+                                    predictor_is_SAM=False,
+                                    parallel_number=8,
+                                    parallel_index=0)
 
     ###############################################
     # BBox prompt #####
