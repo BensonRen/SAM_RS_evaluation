@@ -9,9 +9,9 @@ from skimage.io import imread
 import matplotlib.pyplot as plt
 from skimage.segmentation import mark_boundaries
 from skimage.measure import label, regionprops
-from prompt_solar import show_box
 from multiprocessing import Pool
 
+from misc_utils import *
 
 from shapely.geometry.polygon import Polygon
 import shapely.wkt
@@ -116,34 +116,56 @@ def extract_full_folder(mask_folder, file_list=None, save_df_file=None,
         save_df.to_csv(save_df_file)
     return save_df
 
-def extract_bbox_for_SpaceNet(save_df_file=None, ):
+def extract_bbox_for_SpaceNet(ind_list=None,save_df_file=None, bbox_permutation=[1,0,3,2]):
     """
     The function to extract bounding box for SpaceNet dataset that does not have a ground truth mask structure
     but a .csv file with Shapely PolyGon instead
+    :param bbox_permutation: This is funny, actually by using shapely polygon this is plg.bounds 
+        gives correct sequence of bbox parameters that matches the setting of SAM. However, as we 
+        would flip in during the prompting (as other, sub-sequent functions outputs the flipped one),
+        we need to flip it first to make it comparable with its sub-sequent API
     """
     save_df = pd.DataFrame(columns=['img_name','prop_ind','bbox','centroid','area'])
     shapefile = pd.read_csv('datasets/SpaceNet6/SummaryData/SN6_Train_AOI_11_Rotterdam_Buildings.csv')
-    for i in tqdm(range(len(shapefile))):
+    
+    plg_list = shapely.wkt.loads(shapefile['PolygonWKT_Pix'])
+    if ind_list is None:
+        ind_list = range(len(shapefile))
+    for i in tqdm(ind_list):
         # Skip the empty images
         if 'EMPTY' in shapefile['PolygonWKT_Pix'].values[i]:
             continue;
-        plg = shapely.wkt.loads(shapefile['PolygonWKT_Pix'].values[i])
         file = 'SN6_Train_AOI_11_Rotterdam_PS-RGB_{}.tif'.format(shapefile['ImageId'].values[i])
         ind = shapefile['TileBuildingId'].values[i]
-        save_df.loc[len(save_df)] = [file, ind, np.array(plg.bounds).astype('int'), 
+        plg = plg_list[i]
+        bbox = np.array(plg.bounds)
+        bbox = bbox[bbox_permutation]
+        save_df.loc[len(save_df)] = [file, ind, bbox.astype('int'), 
                                          None, int(plg.area)]
     if save_df_file:
         save_df.to_csv(save_df_file)
     return save_df
-        # x, y = plg.exterior.xy
-        # mask = rasterio.features.rasterize([plg], out_shape=img_size)
-        # indicator_mask_list.append(mask)
 
+def parallel_extract_bbox_spacenet(save_df_file, num_cpu=30):
+    shapefile = pd.read_csv('datasets/SpaceNet6/SummaryData/SN6_Train_AOI_11_Rotterdam_Buildings.csv')
+    all_index = range(len(shapefile))
+    try: 
+        pool = Pool(num_cpu)
+        args_list = []
+        for i in range(num_cpu):
+            args_list.append((
+                            all_index[i::num_cpu], ))
+        output_dfs = pool.starmap(extract_bbox_for_SpaceNet, args_list)
+    finally:
+        pool.close()
+        pool.join()
+    combined_df = pd.concat(output_dfs)
+    combined_df.to_csv(save_df_file)
 
 
 def parallel_extract_full_folder(mask_folder, save_df_file):
     file_list = os.listdir(mask_folder) 
-    num_cpu = 50
+    num_cpu = 10
     try: 
         pool = Pool(num_cpu)
         args_list = []
@@ -178,6 +200,8 @@ if __name__ == '__main__':
     # mask_folder = 'detector_predictions/cloud/masks'                       # The detecotr output for Cloud
     # mask_folder = 'datasets/crop/masks_filled'                        # The GT of crop
     # mask_folder = 'detector_predictions/crop_delineation_filled'      # The detector output for crop
+
+    # mask_folder = 'detector_predictions/SpaceNet/masks'      # The detector output for SpaceNet
     
     #####
     # The DG_land dataset
@@ -200,4 +224,7 @@ if __name__ == '__main__':
     #                     save_df_file=os.path.join(mask_folder, 'bbox.csv'))
 
     # For SpaceNet
-    extract_bbox_for_SpaceNet(save_df_file='datasets/SpaceNet6/SummaryData/bbox.csv')
+    # extract_bbox_for_SpaceNet(save_df_file='datasets/SpaceNet6/SummaryData/bbox.csv')
+
+    # parallell version
+    parallel_extract_bbox_spacenet(save_df_file='datasets/SpaceNet6/SummaryData/bbox.csv')

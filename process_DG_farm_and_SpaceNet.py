@@ -114,7 +114,43 @@ def Process_SpaceNet(list_of_index,
                             img_name.replace('.', '_ObjId_{}.'.format(sub_file['TileBuildingId'].values[i])))
         cv2.imwrite(name, cv2.merge((mask,mask,mask)))    # Save the three channeel image
 
+def combine_SpaceNet_per_object_mask_to_per_image_mask(mask_folder='datasets/SpaceNet6/masks',
+                                                       save_folder='datasets/SpaceNet6/mask_per_img'):
+    """
+    Previously rasterized masks are per object and now combining them into a per image mask
+    """
+    if not os.path.isdir(save_folder):
+        print('creating folder {}...'.format(save_folder))
+        os.makedirs(save_folder)
+    # First get a dictionary of img_name:->list(files)
+    file_list = os.listdir(mask_folder)
+    img_dict = {}
+    for file in tqdm(file_list):
+        img_name = file.split('_ObjId_')[0]
+        if img_name not in img_dict:
+            img_dict[img_name] = []
+        img_dict[img_name].append(file)
+    # combine those imgs
+    for img_name in tqdm(img_dict.keys()):
+        full_img = None
+        for cur_mask in img_dict[img_name]:
+            # print(cur_mask)
+            img = cv2.imread(os.path.join(mask_folder, cur_mask))
+            if full_img is None:
+                full_img = img
+            else:
+                full_img += img
+        # Do a union operation
+        full_img = full_img > 0
+        full_img = full_img.astype('int')
+        full_img *= 255
+        # save combined mask
+        save_name = os.path.join(save_folder, img_name + '.tif')
+        # print('saving to ', save_name)
+        cv2.imwrite(save_name, full_img)
+
 if __name__ == '__main__':
+    combine_SpaceNet_per_object_mask_to_per_image_mask()
     # parallel_get_new_mask_DG_land()
-    parallelize_spacenet()
+    # parallelize_spacenet()
     

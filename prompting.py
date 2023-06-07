@@ -222,7 +222,14 @@ def prompt_folder_with_bbox(mask_folder,
                             dataset='solar_pv',
                             bbox_df_file='bbox.csv',
                             img_folder = 'solar-pv',
+                            parallel_number=None,
+                            parallel_index=None,
                             max_img=999999):
+    
+    # Assert the parallel setting
+    if parallel_number is not None:
+        assert parallel_index is not None, 'Your parallel setting is wrong, check parallel related parameter input'
+
     # Make the saving folder
     save_mask_path = '{}_bbox_prompt_save_{}'.format(dataset, mask_folder)
     if not os.path.isdir(save_mask_path):
@@ -238,8 +245,15 @@ def prompt_folder_with_bbox(mask_folder,
     predictor = load_predictor()
     prev_img_path = None
 
+
+    if parallel_number is not None:
+        sub_df = df.iloc[parallel_index::parallel_number, :]
+        print('PARALLEL MODE ON! doing {} of them in total this is {}'.format(parallel_number, parallel_index))
+    else:
+        sub_df = df
+
     # Loop over all the keys inside the prompt_point_dict
-    for ind, row in tqdm(df.iterrows(), total=df.shape[0]):
+    for ind, row in tqdm(sub_df.iterrows(), total=sub_df.shape[0]):
         # Get image path
         img_path = os.path.join(img_folder, row['img_name'])
         # Make sure this image exist
@@ -312,12 +326,12 @@ if __name__ == '__main__':
     # choose_oracle=False
 
     # inria_DG
-    dataset='inria_dg'
-    mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
-    img_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
-    img_postfix='jpg'
-    mask_postfix='png'
-    choose_oracle=False
+    # dataset='inria_dg'
+    # mask_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
+    # img_folder='datasets/Combined_Inria_DeepGlobe_650/patches'
+    # img_postfix='jpg'
+    # mask_postfix='png'
+    # choose_oracle=True
 
     # DG road
     # dataset='dg_road'
@@ -337,13 +351,13 @@ if __name__ == '__main__':
     # choose_oracle=True
 
     # Crop
-    # dataset='crop'
-    # img_folder ='datasets/crop/imgs'
-    # mask_folder = 'datasets/crop/masks_filled'
-    # img_postfix='.jpeg'
-    # mask_postfix='.png'
-    # size_limit=0
-    # choose_oracle=True
+    dataset='crop'
+    img_folder ='datasets/crop/imgs'
+    mask_folder = 'datasets/crop/masks_filled'
+    img_postfix='.jpeg'
+    mask_postfix='.png'
+    size_limit=0
+    choose_oracle=True
     
     # DG_land use
     # for land_type in [ 'water', 'urban_land','agriculture_land',]:
@@ -358,6 +372,9 @@ if __name__ == '__main__':
     # dataset='SpaceNet'
     # mask_folder='datasets/SpaceNet6/PS-RGB' # There is no actual mask folder
     # img_folder='datasets/SpaceNet6/PS-RGB'
+    # trained_detector_cropped_img_folder = 'detector_predictions/SpaceNet/cropped_imgs'
+    # trained_detector_output_mask_folder = 'detector_predictions/SpaceNet/masks'
+    # gt_bbox_folder = 'datasets/SpaceNet6/SummaryData'
     # img_postfix='.tif'
     # mask_postfix='.tif'
     # size_limit=0
@@ -381,18 +398,20 @@ if __name__ == '__main__':
     # mask_postfix='mask.png'
     # choose_oracle=True
 
-    # prompt_folder_with_multiple_points(mode=mode,
-    #                                 num_point_prompt=num_point_prompt,
-    #                                 max_img=max_img, 
-    #                                 dataset=dataset,
-    #                                 mask_folder=mask_folder,
-    #                                 img_folder=img_folder,
-    #                                 img_postfix=img_postfix,
-    #                                 mask_postfix=mask_postfix,
-    #                                 size_limit=size_limit,
-    #                                 SAM_refine_feedback=SAM_refine_feedback,
-    #                                 choose_oracle=choose_oracle,
-    #                                 predictor_is_SAM=True)
+    prompt_folder_with_multiple_points(mode=mode,
+                                    num_point_prompt=num_point_prompt,
+                                    max_img=max_img, 
+                                    dataset=dataset,
+                                    mask_folder=mask_folder,
+                                    img_folder=img_folder,
+                                    img_postfix=img_postfix,
+                                    mask_postfix=mask_postfix,
+                                    size_limit=size_limit,
+                                    SAM_refine_feedback=SAM_refine_feedback,
+                                    choose_oracle=choose_oracle,
+                                    predictor_is_SAM=True,
+                                    parallel_number=10,
+                                    parallel_index=9)
     
     ###############################################
     # Multi point iterative prompting for RITM #####
@@ -414,24 +433,32 @@ if __name__ == '__main__':
     #############################################################################################
     # Multi point iterative prompting for RITM with parallelism beacuse it is super slow... #####
     #############################################################################################
-    prompt_folder_with_multiple_points(mode=mode,
-                                    num_point_prompt=num_point_prompt,
-                                    max_img=max_img, 
-                                    dataset=dataset,
-                                    mask_folder=mask_folder,
-                                    img_folder=img_folder,
-                                    img_postfix=img_postfix,
-                                    mask_postfix=mask_postfix,
-                                    size_limit=size_limit,
-                                    SAM_refine_feedback=SAM_refine_feedback,
-                                    choose_oracle=choose_oracle,
-                                    predictor_is_SAM=False,
-                                    parallel_number=8,
-                                    parallel_index=0)
+    # prompt_folder_with_multiple_points(mode=mode,
+    #                                 num_point_prompt=num_point_prompt,
+    #                                 max_img=max_img, 
+    #                                 dataset=dataset,
+    #                                 mask_folder=mask_folder,
+    #                                 img_folder=img_folder,
+    #                                 img_postfix=img_postfix,
+    #                                 mask_postfix=mask_postfix,
+    #                                 size_limit=size_limit,
+    #                                 SAM_refine_feedback=SAM_refine_feedback,
+    #                                 choose_oracle=choose_oracle,
+    #                                 predictor_is_SAM=False,
+    #                                 parallel_number=10,
+    #                                 parallel_index=9)
 
     ###############################################
     # BBox prompt #####
     ###############################################
-    # prompt_folder_with_bbox(mask_folder=mask_folder, 
+    # detector output one
+    # prompt_folder_with_bbox(mask_folder=trained_detector_output_mask_folder, 
     #                         dataset=dataset,
-    #                         img_folder = img_folder)
+    #                         img_folder = trained_detector_cropped_img_folder)
+
+    # GT bbox
+    # prompt_folder_with_bbox(mask_folder=gt_bbox_folder, 
+    #                         dataset=dataset,
+    #                         img_folder=img_folder,
+    #                         parallel_number=10,
+    #                         parallel_index=9,)
